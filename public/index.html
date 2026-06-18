@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapido - Bike Taxi & Auto Booking App</title>
+    <meta name="description" content="Book instant bike taxis, autos, and cabs with Rapido. Fast, affordable, and safe rides.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="style.css?v=1.0">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="app-container">
+
+        <!-- 1. WELCOME SCREEN -->
+        <div id="screen-welcome" class="screen active welcome-theme">
+            <div class="welcome-content">
+                <div class="welcome-brand">Rapido</div>
+                <h1 class="welcome-slogan">Ride fast.<br>Pay <em>less.</em></h1>
+                <p class="welcome-subtitle">Book a bike taxi, auto, or cab in seconds. Upfront fares, verified captains, every street in your city.</p>
+                <div class="welcome-actions">
+                    <button id="btn-welcome-get-started" class="btn-welcome-dark">Create Account &rarr;</button>
+                    <button id="btn-welcome-login" class="btn-welcome-light">I already have an account</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. REGISTER SCREEN -->
+        <div id="screen-register" class="screen welcome-theme">
+            <button class="btn-back" id="btn-back-to-welcome-from-register">
+                <i data-lucide="arrow-left"></i>
+            </button>
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div class="welcome-brand text-dark">Rapido</div>
+                    <h2>Create Account</h2>
+                    <p>Enter your details to get started</p>
+                </div>
+                <div class="auth-body">
+                    <div class="form-group-auth">
+                        <label for="reg-name">Full Name</label>
+                        <input type="text" id="reg-name" placeholder="Enter your full name" autocomplete="name">
+                    </div>
+                    <div class="form-group-auth">
+                        <label for="reg-mobile">Mobile Number</label>
+                        <div class="phone-input-container">
+                            <span class="country-code">+91</span>
+                            <input type="tel" id="reg-mobile" placeholder="10-digit mobile number" maxlength="10" autocomplete="tel">
+                        </div>
+                    </div>
+                    <div class="form-group-auth">
+                        <label for="reg-email">Email (optional)</label>
+                        <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="form-group-auth">
+                        <label for="reg-password">Password</label>
+                        <input type="password" id="reg-password" placeholder="Min. 8 characters" autocomplete="new-password">
+                    </div>
+                    <div id="reg-error" class="error-msg-auth hidden"></div>
+                </div>
+                <div class="auth-footer">
+                    <button id="btn-register" class="btn-primary btn-block">Create Account</button>
+                    <p class="auth-switch">Already have an account? <a href="#" id="link-to-login">Sign In</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. LOGIN SCREEN -->
+        <div id="screen-login" class="screen welcome-theme">
+            <button class="btn-back" id="btn-back-to-welcome-from-login">
+                <i data-lucide="arrow-left"></i>
+            </button>
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div class="welcome-brand text-dark">Rapido</div>
+                    <h2>Welcome Back</h2>
+                    <p>Sign in to continue booking rides</p>
+                </div>
+                <div class="auth-body">
+                    <div class="form-group-auth">
+                        <label for="login-mobile">Mobile Number</label>
+                        <div class="phone-input-container">
+                            <span class="country-code">+91</span>
+                            <input type="tel" id="login-mobile" placeholder="10-digit mobile number" maxlength="10" autocomplete="tel">
+                        </div>
+                    </div>
+                    <div class="form-group-auth">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password">
+                    </div>
+                    <div id="login-error" class="error-msg-auth hidden"></div>
+                </div>
+                <div class="auth-footer">
+                    <button id="btn-login" class="btn-primary btn-block">Sign In</button>
+                    <p class="auth-switch">Don't have an account? <a href="#" id="link-to-register">Create one</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. MAIN APP -->
+        <div id="screen-app" class="screen">
+            <!-- Sidebar -->
+            <nav class="sidebar">
+                <div class="sidebar-header">
+                    <div class="user-profile-summary">
+                        <div class="profile-avatar" id="sidebar-avatar">U</div>
+                        <div class="profile-details">
+                            <h4 id="sidebar-user-name">Loading...</h4>
+                            <p id="sidebar-user-phone">+91 ——</p>
+                        </div>
+                    </div>
+                </div>
+                <ul class="sidebar-menu">
+                    <li class="menu-item active" data-target="dashboard">
+                        <i data-lucide="map-pin"></i> <span>Book a Ride</span>
+                    </li>
+                    <li class="menu-item" data-target="history">
+                        <i data-lucide="history"></i> <span>My Rides</span>
+                    </li>
+                    <li class="menu-item" data-target="wallet">
+                        <i data-lucide="wallet"></i> <span>Wallet</span>
+                    </li>
+                    <li class="menu-item" data-target="profile">
+                        <i data-lucide="user"></i> <span>Profile</span>
+                    </li>
+                </ul>
+                <div class="sidebar-footer">
+                    <button id="btn-logout" class="btn-logout-custom">
+                        <i data-lucide="log-out"></i> <span>Log Out</span>
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="app-main-content">
+                <header class="mobile-header">
+                    <button id="mobile-menu-toggle"><i data-lucide="menu"></i></button>
+                    <div class="mobile-logo-text">Rapido</div>
+                    <button id="mobile-wallet-btn" class="wallet-badge">
+                        <i data-lucide="wallet"></i>
+                        <span class="wallet-val">₹0</span>
+                    </button>
+                </header>
+
+                <div class="workspace-grid">
+                    <!-- Left Panel -->
+                    <section class="left-panel">
+
+                        <!-- Panel A: Booking -->
+                        <div id="panel-booking" class="booking-panel active-panel">
+                            <h2>Where are you going?</h2>
+                            <div class="location-inputs">
+                                <div class="location-input-row">
+                                    <div class="location-icon pickup-dot"></div>
+                                    <input type="text" id="input-pickup" placeholder="Enter pickup location">
+                                    <button class="clear-input" id="clear-pickup"><i data-lucide="x"></i></button>
+                                </div>
+                                <div class="location-input-row">
+                                    <div class="location-icon drop-dot"></div>
+                                    <input type="text" id="input-dropoff" placeholder="Enter destination">
+                                    <button class="clear-input" id="clear-dropoff"><i data-lucide="x"></i></button>
+                                </div>
+                                <div class="route-connector-line"></div>
+                            </div>
+
+                            <div id="autocomplete-suggestions" class="suggestions-box hidden"></div>
+
+                            <div class="saved-places-shortcut">
+                                <button class="btn-shortcut" id="btn-home-shortcut">
+                                    <i data-lucide="home"></i> Home
+                                </button>
+                                <button class="btn-shortcut" id="btn-work-shortcut">
+                                    <i data-lucide="briefcase"></i> Work
+                                </button>
+                            </div>
+
+                            <!-- Vehicle picker (shown after destination selected) -->
+                            <div id="vehicle-picker" class="hidden">
+                                <h3>Available Rides</h3>
+                                <div class="ride-options" id="ride-options-container">
+                                    <!-- Populated dynamically by app.js -->
+                                </div>
+
+                                <div class="payment-method-selector">
+                                    <div class="payment-row" id="payment-toggle-btn">
+                                        <i data-lucide="credit-card"></i>
+                                        <span id="selected-payment-method">Cash</span>
+                                        <i data-lucide="chevron-right" class="arrow-right"></i>
+                                    </div>
+                                </div>
+
+                                <!-- Payment method dropdown -->
+                                <div id="payment-method-dropdown" class="hidden payment-dropdown">
+                                    <div class="payment-option" data-method="cash"><i data-lucide="banknote"></i> Cash</div>
+                                    <div class="payment-option" data-method="upi"><i data-lucide="smartphone"></i> UPI</div>
+                                    <div class="payment-option" data-method="card"><i data-lucide="credit-card"></i> Card</div>
+                                </div>
+
+                                <button id="btn-request-ride" class="btn-primary btn-block">Confirm Booking</button>
+                            </div>
+                        </div>
+
+                        <!-- Panel B: Matching -->
+                        <div id="panel-matching" class="booking-panel">
+                            <div class="matching-container">
+                                <div class="radar-ping">
+                                    <div class="ping-circle circle-1"></div>
+                                    <div class="ping-circle circle-2"></div>
+                                    <div class="ping-icon"><i data-lucide="bike"></i></div>
+                                </div>
+                                <h2>Finding your Captain...</h2>
+                                <p>Contacting nearby drivers to accept your ride</p>
+                                <div class="ride-summary-mini">
+                                    <div class="summary-loc"><i data-lucide="circle-dot"></i> <span id="matching-pickup">Pickup</span></div>
+                                    <div class="summary-loc"><i data-lucide="map-pin"></i> <span id="matching-drop">Dropoff</span></div>
+                                </div>
+                                <button id="btn-cancel-matching" class="btn-secondary btn-block">Cancel Request</button>
+                            </div>
+                        </div>
+
+                        <!-- Panel C: Live Tracking -->
+                        <div id="panel-tracking" class="booking-panel">
+                            <div class="assigned-header">
+                                <div class="status-badge green" id="ride-status-badge">Captain Arriving</div>
+                                <h2>OTP to Share: <span id="ride-otp">——</span></h2>
+                            </div>
+                            <div class="captain-card">
+                                <div class="captain-avatar" id="captain-avatar-img">🧑</div>
+                                <div class="captain-info">
+                                    <h4 id="captain-name">——</h4>
+                                    <p class="captain-rating"><i data-lucide="star" class="star-icon"></i> <span id="captain-rating">——</span></p>
+                                </div>
+                                <div class="vehicle-info">
+                                    <span class="vehicle-plate" id="vehicle-plate-num">——</span>
+                                    <span class="vehicle-model" id="vehicle-model-desc">——</span>
+                                </div>
+                            </div>
+                            <div class="ride-progress-stats">
+                                <div class="stat-box">
+                                    <span class="stat-label">ETA</span>
+                                    <span class="stat-value" id="live-eta">——</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Distance</span>
+                                    <span class="stat-value" id="live-distance">——</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Fare</span>
+                                    <span class="stat-value" id="live-fare">——</span>
+                                </div>
+                            </div>
+                            <div class="captain-actions">
+                                <button class="btn-action-circle" title="Call Captain"><i data-lucide="phone"></i></button>
+                                <button class="btn-action-circle" title="Chat"><i data-lucide="message-square"></i></button>
+                                <button class="btn-action-circle danger" id="btn-cancel-ride" title="Cancel Ride"><i data-lucide="x-circle"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Panel D: Completed / Payment -->
+                        <div id="panel-completed" class="booking-panel">
+                            <div class="completed-container">
+                                <div class="success-icon-wrap">
+                                    <i data-lucide="check-circle-2"></i>
+                                </div>
+                                <h2>Hope you enjoyed your Ride!</h2>
+                                <p>Your ride with <span id="comp-captain-name">your captain</span> is complete</p>
+
+                                <div class="receipt-box">
+                                    <div class="receipt-row">
+                                        <span>Ride Fare</span>
+                                        <span id="receipt-fare">——</span>
+                                    </div>
+                                    <div class="receipt-row total">
+                                        <span>Total</span>
+                                        <span id="receipt-total">——</span>
+                                    </div>
+                                    <div class="receipt-payment-method" id="receipt-pay-method">Paid via Cash</div>
+                                </div>
+
+                                <!-- Payment (if not yet paid) -->
+                                <div id="pay-section" class="hidden">
+                                    <h3>Pay for your ride</h3>
+                                    <div class="payment-method-selector">
+                                        <div class="payment-row" id="pay-method-toggle">
+                                            <i data-lucide="credit-card"></i>
+                                            <span id="pay-selected-method">Cash</span>
+                                            <i data-lucide="chevron-right" class="arrow-right"></i>
+                                        </div>
+                                    </div>
+                                    <div id="pay-method-dropdown" class="hidden payment-dropdown">
+                                        <div class="payment-option" data-method="cash"><i data-lucide="banknote"></i> Cash</div>
+                                        <div class="payment-option" data-method="upi"><i data-lucide="smartphone"></i> UPI</div>
+                                        <div class="payment-option" data-method="card"><i data-lucide="credit-card"></i> Card</div>
+                                    </div>
+                                    <button id="btn-pay-ride" class="btn-primary btn-block">Pay Now</button>
+                                </div>
+
+                                <div class="rating-section">
+                                    <h3>Rate your Captain</h3>
+                                    <div class="star-rating">
+                                        <i data-lucide="star" data-index="1"></i>
+                                        <i data-lucide="star" data-index="2"></i>
+                                        <i data-lucide="star" data-index="3"></i>
+                                        <i data-lucide="star" data-index="4"></i>
+                                        <i data-lucide="star" data-index="5"></i>
+                                    </div>
+                                    <textarea id="rating-comment" placeholder="Leave a review (optional)..."></textarea>
+                                </div>
+
+                                <button id="btn-done-rating" class="btn-primary btn-block">Back to Dashboard</button>
+                            </div>
+                        </div>
+
+                        <!-- Panel E: Ride History -->
+                        <div id="panel-history" class="booking-panel">
+                            <div class="panel-header-row">
+                                <h2>Ride History</h2>
+                                <button class="btn-close-subpanel"><i data-lucide="x"></i></button>
+                            </div>
+                            <div class="history-list" id="history-items-container">
+                                <p style="text-align:center;color:var(--text-light);margin-top:20px">Loading rides...</p>
+                            </div>
+                        </div>
+
+                        <!-- Panel F: Wallet (display-only; payments go through API) -->
+                        <div id="panel-wallet" class="booking-panel">
+                            <div class="panel-header-row">
+                                <h2>Payment History</h2>
+                                <button class="btn-close-subpanel"><i data-lucide="x"></i></button>
+                            </div>
+                            <div class="wallet-card-bg">
+                                <span class="wallet-card-title">Total Spent</span>
+                                <span class="wallet-card-balance" id="wallet-total-spent">₹0</span>
+                            </div>
+                            <div class="transactions-section">
+                                <h3>Recent Payments</h3>
+                                <div class="transaction-list" id="transaction-list-container">
+                                    <p style="text-align:center;color:var(--text-light);margin-top:10px">No payments yet.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel G: Profile -->
+                        <div id="panel-profile" class="booking-panel">
+                            <div class="panel-header-row">
+                                <h2>My Profile</h2>
+                                <button class="btn-close-subpanel"><i data-lucide="x"></i></button>
+                            </div>
+                            <div class="profile-form">
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <input type="text" id="profile-name" placeholder="Full Name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Email Address</label>
+                                    <input type="email" id="profile-email" placeholder="you@example.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone Number</label>
+                                    <input type="text" id="profile-phone" disabled>
+                                </div>
+                                <div class="saved-addresses-config">
+                                    <h3>Saved Places</h3>
+                                    <div class="saved-address-row">
+                                        <div class="icon-wrap"><i data-lucide="home"></i></div>
+                                        <div class="address-details">
+                                            <strong>Home</strong>
+                                            <input type="text" id="profile-home-addr" placeholder="Set home address">
+                                        </div>
+                                    </div>
+                                    <div class="saved-address-row">
+                                        <div class="icon-wrap"><i data-lucide="briefcase"></i></div>
+                                        <div class="address-details">
+                                            <strong>Work</strong>
+                                            <input type="text" id="profile-work-addr" placeholder="Set work address">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="profile-save-msg" class="hidden" style="color:var(--success);margin-bottom:8px;font-weight:600;font-size:0.9rem;"></div>
+                                <button id="btn-save-profile" class="btn-primary btn-block">Save Changes</button>
+                            </div>
+                        </div>
+
+                    </section>
+
+                    <!-- Map -->
+                    <section class="right-panel-map">
+                        <div id="leaflet-map-container"></div>
+                    </section>
+                </div>
+            </main>
+        </div>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="simulation.js?v=1.0"></script>
+    <script src="app.js?v=1.0"></script>
+</body>
+</html>
