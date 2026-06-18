@@ -1,16 +1,21 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Database connection using Singleton pattern and PDO.
+ * Database — PDO Singleton.
+ * Sealed against cloning and unserialization.
  */
 
 require_once __DIR__ . '/env.php';
 
-class Database {
-    private static $instance = null;
-    private $conn;
+class Database
+{
+    private static ?Database $instance = null;
+    private PDO $conn;
 
-    private function __construct() {
-        $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+    private function __construct()
+    {
+        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4';
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -20,30 +25,44 @@ class Database {
         try {
             $this->conn = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
-            $this->logError($e->getMessage());
+            // Log sanitized error — never log DSN, credentials, or raw exception message
+            $this->logError('PDO connection failed: ' . $e->getCode());
             header('Content-Type: application/json');
-            echo json_encode([
-                "success" => false,
-                "message" => "Database connection failed."
-            ]);
+            echo json_encode(['success' => false, 'message' => 'Database connection failed.']);
             exit;
         }
     }
 
-    public static function getInstance() {
-        if (self::$instance === null) {
-            self::$instance = new Database();
-        }
-        return self::$instance;
+    /** Prevent cloning — enforces single instance */
+    private function __clone(): void {}
+
+    /** Prevent unserialization — would bypass constructor and create a second instance */
+    public function __wakeup(): never
+    {
+        throw new \RuntimeException('Cannot unserialize a singleton.');
     }
 
-    public function getConnection() {
+    public static function getInstance(): static
+    {
+        if (static::$instance === null) {
+            static::$instance = new static();
+        }
+        return static::$instance;
+    }
+
+    public function getConnection(): PDO
+    {
         return $this->conn;
     }
 
-    private function logError($message) {
-        $logFile = __DIR__ . '/../logs/db_errors.log';
-        $timestamp = date("Y-m-d H:i:s");
-        error_log("[$timestamp] DB Error: $message" . PHP_EOL, 3, $logFile);
+    /**
+     * Write a sanitized message to the error log.
+     * Never pass raw exception messages — they may contain DSN or credentials.
+     */
+    private function logError(string $message): void
+    {
+        $logFile   = __DIR__ . '/../logs/db_errors.log';
+        $timestamp = date('Y-m-d H:i:s');
+        error_log("[{$timestamp}] {$message}" . PHP_EOL, 3, $logFile);
     }
 }
