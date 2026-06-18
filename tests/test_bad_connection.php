@@ -1,11 +1,13 @@
 <?php
-/**
- * Database connection using Singleton pattern and PDO.
- */
+// tests/test_bad_connection.php
 
-require_once __DIR__ . '/env.php';
+// Temporarily override credentials with bad ones
+define('DB_HOST', '127.0.0.1');
+define('DB_NAME', 'wrong_db_name');
+define('DB_USER', 'invalid_user');
+define('DB_PASS', 'wrong_pass');
 
-class Database {
+class BadDatabase {
     private static $instance = null;
     private $conn;
 
@@ -32,7 +34,7 @@ class Database {
 
     public static function getInstance() {
         if (self::$instance === null) {
-            self::$instance = new Database();
+            self::$instance = new BadDatabase();
         }
         return self::$instance;
     }
@@ -47,3 +49,7 @@ class Database {
         error_log("[$timestamp] DB Error: $message" . PHP_EOL, 3, $logFile);
     }
 }
+
+// Attempt connection
+$db = BadDatabase::getInstance();
+$conn = $db->getConnection();
