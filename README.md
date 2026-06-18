@@ -55,3 +55,29 @@ All errors return an appropriate HTTP status code (e.g., 401, 403, 404, 409, 422
 - **Passwords**: Hashed securely using `bcrypt` via `password_hash()`. Verified safely against timing attacks using `password_verify()`.
 - **Session Fixation**: Fixed by regenerating the session ID explicitly upon a successful login.
 - **Error Leaks**: Raw stack traces and PDO errors are masked behind generic JSON error messages in production execution paths.
+
+
+----------------------------------------------------------------------------------------------------
+
+# Rapido Clone - User Ride Backend
+
+This is the backend architecture for a Rapido-style ride booking and management system, built strictly with core technologies.
+
+## Tech Stack
+* **PHP 8+** (Strict typing, PDO)
+* **MySQL 8+** (InnoDB, utf8mb4)
+* Vanilla JavaScript, HTML, CSS
+* **Constraints**: No frameworks (Laravel, Node, etc.), no ORMs, no external libraries.
+
+## Project Documentation
+
+To help the team understand and work on the project, please refer to the following guides:
+
+1. **[Setup Instructions (SETUP.md)](SETUP.md)**: Step-by-step guide for teammates to run the project locally.
+2. **[System Architecture (ARCHITECTURE.md)](ARCHITECTURE.md)**: Explains the folder structure, API endpoints, and strict coding rules.
+
+## Current Progress
+* [x] **Phase 1**: Database Schema (Users, Drivers, Rides, Payments)
+* [x] **Phase 2**: Database Connection (Singleton PDO, Universal env configuration)
+* [x] **Phase 3**: Ride Model implementation
+* [x] **Phase 4**: Booking Endpoint
