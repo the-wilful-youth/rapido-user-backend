@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS rides;
 DROP TABLE IF EXISTS drivers;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_feedback;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -55,4 +56,17 @@ CREATE TABLE payments (
     paid_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_payment_ride FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
     CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_feedback (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT          NOT NULL,
+    ride_id     INT          NOT NULL,
+    driver_id   INT          DEFAULT NULL,
+    rating      TINYINT      NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comments    TEXT         DEFAULT NULL,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_feedback_ride FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
+    CONSTRAINT fk_feedback_driver FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
