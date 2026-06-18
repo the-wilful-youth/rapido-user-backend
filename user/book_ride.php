@@ -73,9 +73,10 @@ if ($errors !== []) {
 // real geocoding/routing service is integrated.
 // Formula: base fare ₹30 + ₹12/km, minimum fare ₹50.
 
-$distance = calculateDistance($pickup, $dest);
-$fare     = calculateFare($distance);
-$otp      = generateOtp();
+$distance = round(mt_rand(200, 2000) / 100, 2);
+$fare     = round(30 + ($distance * 12), 2);
+$fare     = max($fare, 50.00);
+$otp      = (string)mt_rand(1000, 9999);
 
 // ── Persist ───────────────────────────────────────────────────────────────────
 
