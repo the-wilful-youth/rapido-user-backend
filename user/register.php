@@ -30,14 +30,23 @@ $errors = [];
 if (strlen($name) < 2) {
     $errors[] = 'name must be at least 2 characters.';
 }
+if (strlen($name) > 100) {
+    $errors[] = 'Name must be 100 characters or fewer';
+}
 if (!preg_match('/^\+?[0-9]{7,15}$/', $mobile)) {
     $errors[] = 'mobile must be a valid phone number.';
 }
 if (strlen($password) < 8) {
     $errors[] = 'password must be at least 8 characters.';
 }
+if (strlen($password) > 72) {
+    $errors[] = 'Password must be 72 characters or fewer';
+}
 if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $errors[] = 'email is invalid.';
+}
+if ($email !== null && strlen($email) > 255) {
+    $errors[] = 'Email must be 255 characters or fewer';
 }
 
 if ($errors !== []) {

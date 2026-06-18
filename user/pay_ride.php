@@ -54,9 +54,9 @@ $paymentMethod = trim(strip_tags((string)($_POST['payment_method'] ?? 'cash')));
 if ($paymentMethod === '') {
     $paymentMethod = 'cash';
 }
-if (strlen($paymentMethod) > 50) {
+if (!in_array($paymentMethod, ['cash', 'upi', 'card'], true)) {
     http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'payment_method too long (max 50 chars).']);
+    echo json_encode(['success' => false, 'message' => 'Invalid payment method']);
     exit;
 }
 

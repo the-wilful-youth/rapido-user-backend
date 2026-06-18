@@ -29,11 +29,13 @@ if (empty($_SESSION['user_id']) || !is_int($_SESSION['user_id'])) {
 }
 
 $userId = $_SESSION['user_id'];
-$rideId = (int)($_POST['ride_id'] ?? 0);
 
-if ($rideId <= 0) {
+$rawRideId = $_POST['ride_id'] ?? '';
+$rideId    = filter_var($rawRideId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($rideId === false || $rideId === null) {
     http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'ride_id is required.']);
+    echo json_encode(['success' => false, 'message' => 'ride_id must be a positive integer.']);
     exit;
 }
 
@@ -43,7 +45,7 @@ try {
 
     // Verify ride belongs to this user and is in 'waiting' state
     $rideStmt = $pdo->prepare(
-        'SELECT id, driver_id FROM rides WHERE id = :rid AND user_id = :uid LIMIT 1'
+        'SELECT id, driver_id, ride_status FROM rides WHERE id = :rid AND user_id = :uid LIMIT 1'
     );
     $rideStmt->execute([':rid' => $rideId, ':uid' => $userId]);
     $ride = $rideStmt->fetch();
@@ -52,6 +54,14 @@ try {
         $pdo->rollBack();
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Ride not found.']);
+        exit;
+    }
+
+    // Ride must be in 'waiting' state — blocks re-assignment on completed/started rides
+    if ($ride['ride_status'] !== 'waiting') {
+        $pdo->rollBack();
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => "Ride is not in 'waiting' state."]);
         exit;
     }
 
