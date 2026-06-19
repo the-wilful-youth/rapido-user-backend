@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Required POST fields: mobile, password
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';
@@ -49,7 +49,12 @@ try {
 
     $_SESSION['user_id'] = (int) $user['id'];
 
-    echo json_encode(['success' => true, 'user_id' => (int) $user['id'], 'name' => $user['name']]);
+    echo json_encode([
+        'success'    => true,
+        'user_id'    => (int) $user['id'],
+        'name'       => $user['name'],
+        'csrf_token' => $_SESSION['csrf_token'],
+    ]);
 } catch (Throwable) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Login failed.']);

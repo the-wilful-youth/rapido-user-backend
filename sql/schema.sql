@@ -55,7 +55,8 @@ CREATE TABLE payments (
     payment_method VARCHAR(50)  NOT NULL,
     paid_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_payment_ride FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
-    CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_payment_ride (ride_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE user_feedback (
@@ -68,5 +69,6 @@ CREATE TABLE user_feedback (
     created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_feedback_ride FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
-    CONSTRAINT fk_feedback_driver FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL
+    CONSTRAINT fk_feedback_driver FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_feedback_ride (ride_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -2,12 +2,12 @@
 declare(strict_types=1);
 
 /**
- * user/complete_ride.php
- * POST endpoint — marks a ride as 'completed' and frees the assigned driver.
+ * user/advance_ride.php
+ * POST — advance a ride to the next lifecycle state.
  *
- * This endpoint is intentionally driver-only: only sessions with a valid
- * driver_id set (by the driver login flow) may call it.
- * A plain user session is rejected with 403.
+ * Driver-only endpoint. Allowed transitions:
+ *   accepted       → driver_arrived
+ *   driver_arrived → started
  *
  * Required POST field: ride_id
  */
@@ -26,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 validate_csrf();
 
-// Only driver sessions may complete a ride
 if (empty($_SESSION['driver_id']) || !is_int($_SESSION['driver_id'])) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Forbidden. Driver access only.']);
@@ -44,6 +43,12 @@ if ($rideId === false || $rideId === null) {
     exit;
 }
 
+// Allowed state machine transitions for this endpoint
+const TRANSITIONS = [
+    'accepted'       => 'driver_arrived',
+    'driver_arrived' => 'started',
+];
+
 try {
     $pdo  = Database::getInstance()->getConnection();
     $ride = new Ride($pdo);
@@ -60,39 +65,30 @@ if ($row === null) {
     exit;
 }
 
-// Ensure this driver is the one assigned to the ride
 if ((int) $row['driver_id'] !== $sessionDriverId) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Access denied.']);
     exit;
 }
 
-if ($row['ride_status'] !== 'started') {
+$currentStatus = $row['ride_status'];
+if (!array_key_exists($currentStatus, TRANSITIONS)) {
     http_response_code(422);
     echo json_encode([
         'success' => false,
-        'message' => "Cannot complete a ride with status '{$row['ride_status']}'. Ride must be 'started'.",
+        'message' => "Cannot advance ride from status '{$currentStatus}'.",
     ]);
     exit;
 }
 
+$nextStatus = TRANSITIONS[$currentStatus];
+
 try {
-    $pdo->beginTransaction();
-
-    $ride->updateStatus($rideId, 'completed');
-
-    // Free the driver so they can accept new rides
-    $pdo->prepare('UPDATE drivers SET is_available = TRUE WHERE id = :did')
-        ->execute([':did' => $sessionDriverId]);
-
-    $pdo->commit();
+    $ride->updateStatus($rideId, $nextStatus);
 } catch (Throwable) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Could not complete ride.']);
+    echo json_encode(['success' => false, 'message' => 'Could not advance ride status.']);
     exit;
 }
 
-echo json_encode(['success' => true, 'message' => 'Ride marked complete.']);
+echo json_encode(['success' => true, 'ride_status' => $nextStatus]);

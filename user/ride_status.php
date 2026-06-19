@@ -14,7 +14,7 @@ declare(strict_types=1);
  *   • driver_name / vehicle_number are null (not an error) when no driver assigned yet.
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';

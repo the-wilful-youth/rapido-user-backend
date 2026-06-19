@@ -59,16 +59,6 @@ const LOCATION_PRESETS = [
     { name: "Jamshedpur Co-operative College", lat: 22.8090, lng: 86.1890, address: "College Road, Jamshedpur 831001" }
 ];
 
-// ── Simulated captain pool (visual simulation only; real driver assigned by API) ─
-
-const CAPTAINS_POOL = [
-    { name: "Ramesh Kumar",  avatar: "🧑", rating: "4.8", rides: 1420, plate: "JH 05 AB 1234", model: "Honda Activa 6G (Yellow)" },
-    { name: "Satish Gowda",  avatar: "👨", rating: "4.9", rides: 2310, plate: "JH 05 CD 5678", model: "Suzuki Access 125 (Black)" },
-    { name: "Amit Sharma",   avatar: "👦", rating: "4.7", rides: 890,  plate: "JH 05 EF 9012", model: "TVS Jupiter (Grey)" },
-    { name: "Vikram Singh",  avatar: "🧔", rating: "4.9", rides: 3150, plate: "JH 05 GH 3456", model: "Bajaj Pulsar 150 (Red)" },
-    { name: "Priya Mehta",   avatar: "👩", rating: "5.0", rides: 640,  plate: "JH 05 IJ 7890", model: "Honda Activa (Pink)" }
-];
-
 // ── Vehicle definitions (used to build the ride-option cards) ─────────────────
 
 const VEHICLE_TYPES = [

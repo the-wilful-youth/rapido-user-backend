@@ -15,19 +15,19 @@ declare(strict_types=1);
  *   • Transaction wraps INSERT + markPaid — rolls back on failure.
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../models/Ride.php';
-
-// ── Method check ──────────────────────────────────────────────────────────────
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
     exit;
 }
+
+validate_csrf();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

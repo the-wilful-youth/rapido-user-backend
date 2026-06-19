@@ -10,7 +10,7 @@ declare(strict_types=1);
  * Requires active session with user_id set.
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';
@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+validate_csrf();
+
 if (empty($_SESSION['user_id']) || !is_int($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
@@ -28,13 +30,20 @@ if (empty($_SESSION['user_id']) || !is_int($_SESSION['user_id'])) {
 }
 
 $userId   = $_SESSION['user_id'];
-$rideId   = (int)($_POST['ride_id'] ?? 0);
-$rating   = (int)($_POST['rating'] ?? 0);
-$comments = $_POST['comments'] ?? null;
 
-if ($rideId <= 0 || $rating < 1 || $rating > 5) {
+$rideId  = filter_var($_POST['ride_id'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$rating  = filter_var($_POST['rating']  ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
+$comments = isset($_POST['comments']) ? trim((string)$_POST['comments']) : null;
+
+if ($rideId === false || $rideId === null || $rating === false || $rating === null) {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => 'Valid ride_id and rating (1-5) are required.']);
+    exit;
+}
+
+if ($comments !== null && strlen($comments) > 1000) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Comments must be 1000 characters or fewer.']);
     exit;
 }
 

@@ -11,7 +11,7 @@ declare(strict_types=1);
  * Picks the first available driver and marks them unavailable atomically.
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';
@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
     exit;
 }
+
+validate_csrf();
 
 if (empty($_SESSION['user_id']) || !is_int($_SESSION['user_id'])) {
     http_response_code(401);
@@ -43,9 +45,9 @@ try {
     $pdo = Database::getInstance()->getConnection();
     $pdo->beginTransaction();
 
-    // Verify ride belongs to this user and is in 'waiting' state
+    // Verify ride belongs to this user and is in 'waiting' state — locked to prevent concurrent assignment
     $rideStmt = $pdo->prepare(
-        'SELECT id, driver_id, ride_status FROM rides WHERE id = :rid AND user_id = :uid LIMIT 1'
+        'SELECT id, driver_id, ride_status FROM rides WHERE id = :rid AND user_id = :uid LIMIT 1 FOR UPDATE'
     );
     $rideStmt->execute([':rid' => $rideId, ':uid' => $userId]);
     $ride = $rideStmt->fetch();

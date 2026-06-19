@@ -9,20 +9,19 @@ declare(strict_types=1);
  * Requires active session with user_id set.
  */
 
-session_start();
+require_once __DIR__ . '/../config/bootstrap.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../models/Ride.php';
-
-// ── Method check first — before any auth logic ────────────────────────────────
-// Avoids leaking auth state to unauthenticated probes on wrong methods.
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed.']);
     exit;
 }
+
+validate_csrf();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

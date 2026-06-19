@@ -15,8 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
         booking: {
             pickup: null, dropoff: null, vehicle: null,
             fares: {}, etas: {}, distance: 0,
-            rideId: null, captainName: null, fare: 0, paymentMethod: 'cash'
+            rideId: null, captainName: null, fare: 0, paymentMethod: 'cash',
+            realDriver: null
         },
+        csrfToken: '',
+        countryCode: '+91',
         map: null,
         markers: { pickup: null, dropoff: null, nearbyDrivers: [], activeDriver: null },
         routePolyline: null,
@@ -25,20 +28,41 @@ document.addEventListener('DOMContentLoaded', () => {
         statusPollInterval: null
     };
 
-    const sessionRides    = [];   // rides completed this session
-    const sessionPayments = [];   // payments made this session
+    const sessionRides    = [];
+    const sessionPayments = [];
+
+    // Bootstrap: fetch CSRF token and country config before anything else
+    async function bootstrap() {
+        const csrfJson = await fetch('../user/csrf.php', { credentials: 'same-origin' })
+            .then(r => r.json()).catch(() => null);
+        if (csrfJson && csrfJson.csrf_token) {
+            state.csrfToken = csrfJson.csrf_token;
+        }
+        // Read country code from meta tag if provided, otherwise default to +91
+        const meta = document.querySelector('meta[name="country-code"]');
+        if (meta) state.countryCode = meta.content;
+        // Sync country code display in auth forms
+        document.getElementById('reg-country-code').textContent   = state.countryCode;
+        document.getElementById('login-country-code').textContent = state.countryCode;
+    }
+
+    bootstrap();
 
     // =========================================================================
     // UTILITIES
     // =========================================================================
 
     async function apiPost(url, data) {
+        const payload = Object.assign({}, data, { csrf_token: state.csrfToken });
         const res = await fetch(url, {
             method: 'POST',
-            body: new URLSearchParams(data),
+            body: new URLSearchParams(payload),
             credentials: 'same-origin'
         });
-        return res.json();
+        const json = await res.json();
+        // If server regenerated the token (e.g. after login), cache the new one
+        if (json && json.csrf_token) state.csrfToken = json.csrf_token;
+        return json;
     }
 
     async function apiGet(url) {
@@ -85,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         hideError('reg-error');
         const name     = document.getElementById('reg-name').value.trim();
         const rawPhone = document.getElementById('reg-mobile').value.trim();
-        const mobile   = '+91' + rawPhone;
+        const mobile   = state.countryCode + rawPhone;
         const email    = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value;
 
@@ -101,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Auto-login after successful registration
         const loginJson = await apiPost('../user/login.php', { mobile, password }).catch(() => null);
         if (loginJson && loginJson.success) {
             onLoginSuccess(loginJson, rawPhone);
@@ -113,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-login').addEventListener('click', async () => {
         hideError('login-error');
         const rawPhone = document.getElementById('login-mobile').value.trim();
-        const mobile   = '+91' + rawPhone;
+        const mobile   = state.countryCode + rawPhone;
         const password = document.getElementById('login-password').value;
 
         const btn = document.getElementById('btn-login');
@@ -132,20 +155,22 @@ document.addEventListener('DOMContentLoaded', () => {
         state.user.id    = json.user_id;
         state.user.name  = json.name;
         state.user.phone = rawPhone;
+        if (json.csrf_token) state.csrfToken = json.csrf_token;
 
         document.getElementById('sidebar-user-name').textContent = state.user.name;
-        document.getElementById('sidebar-user-phone').textContent = '+91 ' + state.user.phone;
+        document.getElementById('sidebar-user-phone').textContent = state.countryCode + ' ' + state.user.phone;
         document.getElementById('sidebar-avatar').textContent = state.user.name.charAt(0).toUpperCase();
         document.getElementById('profile-name').value  = state.user.name;
-        document.getElementById('profile-phone').value = '+91 ' + state.user.phone;
+        document.getElementById('profile-phone').value = state.countryCode + ' ' + state.user.phone;
 
         switchScreen('screen-app');
         initLeafletMap();
     }
 
-    document.getElementById('btn-logout').addEventListener('click', () => {
+    document.getElementById('btn-logout').addEventListener('click', async () => {
         clearInterval(state.statusPollInterval);
         clearInterval(state.simulationInterval);
+        await apiPost('../user/logout.php', {}).catch(() => null);
         window.location.reload();
     });
 
@@ -451,9 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function startRideSimulation() {
-        const captain = CAPTAINS_POOL[Math.floor(Math.random() * CAPTAINS_POOL.length)];
-        state.booking.captainName = captain.name;
-
         const driverIcon = L.divIcon({
             html: '<div class="driver-marker-pulse"><i data-lucide="bike"></i></div>',
             className: 'map-driver-marker', iconSize: [36, 36], iconAnchor: [18, 18]
@@ -465,22 +487,23 @@ document.addEventListener('DOMContentLoaded', () => {
         state.markers.activeDriver = L.marker([startPos.lat, startPos.lng], { icon: driverIcon }).addTo(state.map);
         refreshIcons();
 
-        // Prefer real DB driver if assignment succeeded, else use simulated captain
+        // Use real DB driver; fall back to placeholder if none assigned
         const rd = state.booking.realDriver;
-        const displayName    = rd ? rd.driver_name    : captain.name;
-        const displayPlate   = rd ? rd.vehicle_number : captain.plate;
-        const displayModel   = rd ? ''                : captain.model;
-        const displayRating  = rd ? 'Verified Driver' : captain.rating + ' (' + captain.rides + ' rides)';
+        const displayName  = rd ? rd.driver_name    : 'Assigned Driver';
+        const displayPlate = rd ? rd.vehicle_number : '——';
         state.booking.captainName = displayName;
 
         document.getElementById('captain-name').textContent       = displayName;
-        document.getElementById('captain-rating').textContent     = displayRating;
+        document.getElementById('captain-rating').textContent     = rd ? 'Verified Driver' : '——';
         document.getElementById('vehicle-plate-num').textContent  = displayPlate;
-        document.getElementById('vehicle-model-desc').textContent = displayModel;
-        document.getElementById('live-fare').textContent         = '₹' + Math.round(state.booking.fare);
-        document.getElementById('ride-status-badge').textContent = 'Captain Arriving';
-        document.getElementById('ride-status-badge').className   = 'status-badge green';
+        document.getElementById('vehicle-model-desc').textContent = '';
+        document.getElementById('live-fare').textContent          = '₹' + Math.round(state.booking.fare);
+        document.getElementById('ride-status-badge').textContent  = 'Captain Arriving';
+        document.getElementById('ride-status-badge').className    = 'status-badge green';
         showPanel('panel-tracking');
+
+        // Advance DB ride: waiting → accepted (also assigns driver if still waiting)
+        apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'accepted' }).catch(() => null);
 
         // Phase 1: driver approaches pickup
         const toPickup = generateRoutePoints(startPos, state.booking.pickup, 40);
@@ -498,6 +521,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('ride-status-badge').className   = 'status-badge warning';
                 document.getElementById('live-eta').textContent      = 'Arrived';
                 document.getElementById('live-distance').textContent = '0.0 km';
+                // Advance DB ride: accepted → driver_arrived
+                apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'driver_arrived' }).catch(() => null);
                 setTimeout(startTripPhase, 2500);
             }
         }, 150);
@@ -508,6 +533,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function startTripPhase() {
         document.getElementById('ride-status-badge').textContent = 'Ride In Progress';
         document.getElementById('ride-status-badge').className   = 'status-badge green';
+
+        // Advance DB ride: driver_arrived → started
+        apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'started' }).catch(() => null);
 
         const toDropoff = generateRoutePoints(state.booking.pickup, state.booking.dropoff, 60);
         let idx = 0;
@@ -521,7 +549,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('live-distance').textContent = d.toFixed(1) + ' km';
             } else {
                 clearInterval(state.simulationInterval);
-                showCompletedPanel();
+                // Advance DB ride: started → completed (also frees driver)
+                apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'completed' })
+                    .catch(() => null)
+                    .finally(() => showCompletedPanel());
             }
         }, 150);
     }
@@ -535,11 +566,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startStatusPolling(rideId) {
+        const STATUS_LABELS = {
+            waiting:        'Finding Captain',
+            accepted:       'Captain Arriving',
+            driver_arrived: 'Arrived at Pickup',
+            started:        'Ride In Progress',
+            completed:      'Ride Complete',
+        };
         state.statusPollInterval = setInterval(async () => {
             const json = await apiGet('../user/ride_status.php?ride_id=' + rideId).catch(() => null);
             if (!json || !json.success) return;
             if (json.driver_name)    document.getElementById('captain-name').textContent      = json.driver_name;
             if (json.vehicle_number) document.getElementById('vehicle-plate-num').textContent = json.vehicle_number;
+            const label = STATUS_LABELS[json.ride_status];
+            if (label) {
+                document.getElementById('ride-status-badge').textContent = label;
+                document.getElementById('ride-status-badge').className =
+                    json.ride_status === 'driver_arrived' ? 'status-badge warning' : 'status-badge green';
+            }
         }, 5000);
     }
 

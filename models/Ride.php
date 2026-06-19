@@ -126,9 +126,11 @@ class Ride
         $stmt = $this->db->prepare(
             'SELECT id, user_id, driver_id, pickup_location, destination,
                     distance_km, fare, ride_status, payment_status, created_at
-             FROM rides WHERE user_id = :uid ORDER BY created_at DESC LIMIT ' . self::LIST_LIMIT
+             FROM rides WHERE user_id = :uid ORDER BY created_at DESC LIMIT :lim'
         );
-        $stmt->execute([':uid' => $userId]);
+        $stmt->bindValue(':uid', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', self::LIST_LIMIT, PDO::PARAM_INT);
+        $stmt->execute();
         return $stmt->fetchAll();
     }
 
