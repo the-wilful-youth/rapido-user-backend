@@ -1,83 +1,177 @@
-# Rapido Clone — User Backend Module
+# Rapido Clone — User Backend
 
-## Module Purpose
-This module handles all backend logic for the user-facing side of the Rapido Clone platform. It provides a set of secure REST APIs built in pure PHP 8 to manage user authentication (registration and login), ride lifecycle (booking, polling status, tracking), and payments. It uses MySQL 8 with PDO for robust data persistence and enforces strict state transitions for rides.
-
-## Prerequisites
-- **PHP 8+**
-- **MySQL 8**
-- **Local Web Server** (e.g., XAMPP, WAMP, or MAMP)
-
-## Setup Steps
-1. **Clone the repository** and place it in your local server's document root (e.g., `C:\xampp\htdocs\rapido-user-backend`).
-2. **Database Setup**: Open phpMyAdmin, create a database named `rapido_clone`, and import the schema from `sql/schema.sql`.
-3. **Configure Environment**: 
-   - Copy `config/env.sample.php` and rename it to `config/env.php`.
-   - Update `DB_PASS` with your local MySQL password (leave blank for default XAMPP).
-4. **Start Server**: Ensure both Apache and MySQL are running in your control panel.
-
-## API Endpoint Reference
-
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|---|
-| POST | `user/register.php` | Register a new user | No |
-| POST | `user/login.php` | Authenticate and start a session | No |
-| POST | `user/book_ride.php` | Create a new ride booking | Yes |
-| GET | `user/ride_status.php` | Poll the current status of a specific ride | Yes |
-| POST | `user/assign_driver.php` | Assign an available driver to a waiting ride | Yes |
-| POST | `user/complete_ride.php` | Manually complete a ride (temporary driver mock) | Yes |
-| POST | `user/pay_ride.php` | Record payment for a completed ride | Yes |
-
-*Note: Endpoints requiring auth expect a valid `PHPSESSID` cookie representing the logged-in user.*
-
-## Ride Status Lifecycle (ENUM)
-Rides enforce strict state transitions and must follow this flow:
-1. `waiting` — Ride is booked, waiting for a driver to accept.
-2. `accepted` — A driver has been assigned.
-3. `driver_arrived` — The driver has reached the pickup location.
-4. `started` — The ride is in progress.
-5. `completed` — The ride is finished. Payments can only be processed in this state.
-
-## Standard Error Response Format
-All errors return an appropriate HTTP status code (e.g., 401, 403, 404, 409, 422, 500) along with a JSON payload:
-
-```json
-{
-  "success": false,
-  "message": "A human-readable error description."
-}
-```
-*Validation errors (422) may omit `message` and provide an `errors` array instead with specific field violations.*
-
-## Security Notes
-- **SQL Injection**: All database queries use PDO prepared statements with named parameters. No manual string concatenation.
-- **XSS / Input Validation**: All user inputs are trimmed, type-checked, and length-validated (e.g., bounds checking to match database constraints).
-- **Passwords**: Hashed securely using `bcrypt` via `password_hash()`. Verified safely against timing attacks using `password_verify()`.
-- **Session Fixation**: Fixed by regenerating the session ID explicitly upon a successful login.
-- **Error Leaks**: Raw stack traces and PDO errors are masked behind generic JSON error messages in production execution paths.
-
-
-----------------------------------------------------------------------------------------------------
-
-# Rapido Clone - User Ride Backend
-
-This is the backend architecture for a Rapido-style ride booking and management system, built strictly with core technologies.
+A Rapido-style ride-booking platform built with pure PHP 8, MySQL 8, and vanilla JS. No frameworks, no ORMs.
 
 ## Tech Stack
-* **PHP 8+** (Strict typing, PDO)
-* **MySQL 8+** (InnoDB, utf8mb4)
-* Vanilla JavaScript, HTML, CSS
-* **Constraints**: No frameworks (Laravel, Node, etc.), no ORMs, no external libraries.
 
-## Project Documentation
+| Layer | Technology |
+|---|---|
+| Backend | PHP 8+ (strict types, PDO) |
+| Database | MySQL 8 (InnoDB, utf8mb4) |
+| Frontend | Vanilla JS, HTML5, CSS3 |
+| Map | Leaflet.js + OpenStreetMap |
+| Icons | Lucide |
 
-To help the team understand and work on the project, please refer to the following guides:
+---
 
-1. **[Setup Instructions (SETUP.md)](SETUP.md)**: Step-by-step guide for teammates to run the project locally.
-2. **[System Architecture (ARCHITECTURE.md)](ARCHITECTURE.md)**: Explains the folder structure, API endpoints, and strict coding rules.
+## Quick Start
+
+See [SETUP.md](SETUP.md) for the full step-by-step guide.
+
+**TL;DR:**
+1. Place the project in your web server's document root
+2. Create database `rapido_clone` and import `sql/schema.sql`
+3. Copy `config/env.sample.php` → `config/env.php` and set your DB password
+4. Open `http://localhost/rapido-user-backend/public/index.html`
+
+---
+
+## Project Structure
+
+```
+rapido-user-backend/
+├── config/
+│   ├── bootstrap.php       # Session security flags + CSRF token init
+│   ├── db.php              # PDO singleton
+│   ├── env.sample.php      # Credentials template (commit this)
+│   └── env.php             # Local credentials (git-ignored)
+├── models/
+│   └── Ride.php            # All ride DB operations
+├── public/
+│   ├── index.html          # Single-page frontend app
+│   ├── app.js              # All UI logic, API calls, ride simulation
+│   ├── simulation.js       # Map helpers, location presets, pricing
+│   └── style.css
+├── sql/
+│   └── schema.sql          # Full DB schema (users, drivers, rides, payments, feedback)
+├── tests/
+│   ├── test_connection.php
+│   └── test_bad_connection.php
+├── user/                   # API endpoints
+│   ├── csrf.php
+│   ├── register.php
+│   ├── login.php
+│   ├── logout.php
+│   ├── book_ride.php
+│   ├── assign_driver.php
+│   ├── ride_status.php
+│   ├── advance_ride.php
+│   ├── complete_ride.php
+│   ├── simulation_advance.php
+│   ├── pay_ride.php
+│   ├── submit_feedback.php
+│   ├── ride_history.php
+│   ├── payment_history.php
+│   └── update_profile.php
+└── logs/
+    └── db_errors.log       # PDO errors (git-ignored)
+```
+
+---
+
+## API Reference
+
+All endpoints return `Content-Type: application/json`. Auth endpoints require a valid `PHPSESSID` cookie. Every POST request must include a `csrf_token` field (fetched from `user/csrf.php`).
+
+### Auth
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `user/csrf.php` | No | Get CSRF token for the current session |
+| POST | `user/register.php` | No | Register a new user |
+| POST | `user/login.php` | No | Login, start session |
+| POST | `user/logout.php` | Yes | Destroy session server-side |
+
+### Ride Lifecycle (User)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `user/book_ride.php` | User | Create a ride, returns `ride_id` and `otp` |
+| POST | `user/assign_driver.php` | User | Assign an available driver to a waiting ride |
+| GET | `user/ride_status.php?ride_id=` | User | Poll live ride status + driver info |
+| POST | `user/pay_ride.php` | User | Record payment for a completed ride |
+| POST | `user/submit_feedback.php` | User | Submit rating and comments for a completed ride |
+| GET | `user/ride_history.php` | User | Paginated ride history |
+| GET | `user/payment_history.php` | User | Paginated payment history + total spent |
+| POST | `user/update_profile.php` | User | Update name and/or email |
+
+### Ride Lifecycle (Driver)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `user/advance_ride.php` | Driver | `accepted→driver_arrived` or `driver_arrived→started` |
+| POST | `user/complete_ride.php` | Driver | `started→completed`, frees the driver atomically |
+
+### Simulation (Demo Only)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `user/simulation_advance.php` | User | Advances ride through the full lifecycle for the frontend simulation. Not for production driver use. |
+
+> **Driver auth**: driver endpoints require `$_SESSION['driver_id']` (set by the driver login flow, not yet built in this module).
+
+---
+
+## Ride Status Lifecycle
+
+```
+waiting → accepted → driver_arrived → started → completed
+```
+
+- `waiting` — booked, no driver yet
+- `accepted` — driver assigned
+- `driver_arrived` — driver at pickup
+- `started` — ride in progress
+- `completed` — ride finished; payment can now be recorded
+
+State transitions are enforced server-side. Out-of-order calls return `409` or `422`.
+
+---
+
+## Standard Response Format
+
+**Success:**
+```json
+{ "success": true, "...": "..." }
+```
+
+**Error:**
+```json
+{ "success": false, "message": "Human-readable description." }
+```
+
+**Validation error (422):**
+```json
+{ "success": false, "errors": ["field error 1", "field error 2"] }
+```
+
+---
+
+## Security
+
+| Concern | Implementation |
+|---|---|
+| SQL injection | PDO prepared statements with named parameters everywhere |
+| CSRF | Per-session token (`bootstrap.php`), validated on every POST |
+| Session fixation | `session_regenerate_id(true)` on login |
+| Session cookies | `HttpOnly`, `Secure` (over HTTPS), `SameSite=Strict` |
+| Password storage | `bcrypt` via `password_hash()` |
+| Timing attacks | `password_verify()` used unconditionally (dummy hash path) |
+| OTP storage | bcrypt hash at rest; raw value returned once to user only |
+| Error leaks | Raw PDO exceptions never exposed; logged to `logs/db_errors.log` |
+| Log access | `logs/.htaccess` blocks direct HTTP access (Apache) |
+| DB unique constraints | `UNIQUE KEY` on `payments.ride_id` and `user_feedback.ride_id` |
+
+---
 
 ## Current Progress
-* [x] **Phase 1**: Database Schema (Users, Drivers, Rides, Payments)
-* [x] **Phase 2**: Database Connection (Singleton PDO, Universal env configuration)
-* [x] **Phase 3**: Ride Model implementation
-* [x] **Phase 4**: Booking Endpoint
+
+- [x] Phase 1 — Database schema
+- [x] Phase 2 — PDO singleton + environment config
+- [x] Phase 3 — Ride model
+- [x] Phase 4 — Booking endpoint
+- [x] Phase 5 — Full ride lifecycle endpoints
+- [x] Phase 6 — Payment + feedback endpoints
+- [x] Phase 7 — Frontend SPA (map, booking flow, history, wallet, profile)
+- [x] Phase 8 — Security hardening (CSRF, session flags, race condition fixes)
+- [ ] Phase 9 — Driver module (login, session, accept/advance rides)
