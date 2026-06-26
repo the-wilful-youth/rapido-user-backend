@@ -44,6 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sync country code display in auth forms
         document.getElementById('reg-country-code').textContent   = state.countryCode;
         document.getElementById('login-country-code').textContent = state.countryCode;
+
+        // Auto-recover session if user is logged in
+        if (csrfJson && csrfJson.user) {
+            const userPayload = {
+                user_id: csrfJson.user.user_id,
+                name: csrfJson.user.name,
+                email: csrfJson.user.email,
+                csrf_token: csrfJson.csrf_token
+            };
+            // Remove country code from start of mobile string to get raw local phone
+            let rawPhone = csrfJson.user.mobile;
+            if (rawPhone.startsWith(state.countryCode)) {
+                rawPhone = rawPhone.substring(state.countryCode.length);
+            }
+            onLoginSuccess(userPayload, rawPhone);
+        }
     }
 
     bootstrap();
@@ -155,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.user.id    = json.user_id;
         state.user.name  = json.name;
         state.user.phone = rawPhone;
+        state.user.email = json.email || '';
         if (json.csrf_token) state.csrfToken = json.csrf_token;
 
         document.getElementById('sidebar-user-name').textContent = state.user.name;
@@ -162,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sidebar-avatar').textContent = state.user.name.charAt(0).toUpperCase();
         document.getElementById('profile-name').value  = state.user.name;
         document.getElementById('profile-phone').value = state.countryCode + ' ' + state.user.phone;
+        document.getElementById('profile-email').value = state.user.email;
 
         switchScreen('screen-app');
         initLeafletMap();
@@ -255,10 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
         drawRoute();
     }
 
-    function drawRoute() {
+    async function drawRoute() {
         if (!state.map) return;
         if (state.routePolyline) state.map.removeLayer(state.routePolyline);
-        const pts = generateRoutePoints(state.booking.pickup, state.booking.dropoff, 60).map(p => [p.lat, p.lng]);
+        const ptsData = await fetchRoutePoints(state.booking.pickup, state.booking.dropoff);
+        const pts = ptsData.map(p => [p.lat, p.lng]);
         state.routePolyline = L.polyline(pts, {
             color: '#1F2229', weight: 5, opacity: 0.8, dashArray: '1, 10', lineCap: 'round'
         }).addTo(state.map);
@@ -506,26 +525,27 @@ document.addEventListener('DOMContentLoaded', () => {
         apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'accepted' }).catch(() => null);
 
         // Phase 1: driver approaches pickup
-        const toPickup = generateRoutePoints(startPos, state.booking.pickup, 40);
-        let idx = 0;
-        state.simulationInterval = setInterval(() => {
-            if (idx < toPickup.length) {
-                const p = toPickup[idx++];
-                state.markers.activeDriver.setLatLng([p.lat, p.lng]);
-                const d = calculateDistance(p.lat, p.lng, state.booking.pickup.lat, state.booking.pickup.lng);
-                document.getElementById('live-eta').textContent      = Math.max(1, Math.round(d * 3)) + ' min';
-                document.getElementById('live-distance').textContent = d.toFixed(2) + ' km';
-            } else {
-                clearInterval(state.simulationInterval);
-                document.getElementById('ride-status-badge').textContent = 'Arrived at Pickup';
-                document.getElementById('ride-status-badge').className   = 'status-badge warning';
-                document.getElementById('live-eta').textContent      = 'Arrived';
-                document.getElementById('live-distance').textContent = '0.0 km';
-                // Advance DB ride: accepted → driver_arrived
-                apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'driver_arrived' }).catch(() => null);
-                setTimeout(startTripPhase, 2500);
-            }
-        }, 150);
+        fetchRoutePoints(startPos, state.booking.pickup).then(toPickup => {
+            let idx = 0;
+            state.simulationInterval = setInterval(() => {
+                if (idx < toPickup.length) {
+                    const p = toPickup[idx++];
+                    state.markers.activeDriver.setLatLng([p.lat, p.lng]);
+                    const d = calculateDistance(p.lat, p.lng, state.booking.pickup.lat, state.booking.pickup.lng);
+                    document.getElementById('live-eta').textContent      = Math.max(1, Math.round(d * 3)) + ' min';
+                    document.getElementById('live-distance').textContent = d.toFixed(2) + ' km';
+                } else {
+                    clearInterval(state.simulationInterval);
+                    document.getElementById('ride-status-badge').textContent = 'Arrived at Pickup';
+                    document.getElementById('ride-status-badge').className   = 'status-badge warning';
+                    document.getElementById('live-eta').textContent      = 'Arrived';
+                    document.getElementById('live-distance').textContent = '0.0 km';
+                    // Advance DB ride: accepted → driver_arrived
+                    apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'driver_arrived' }).catch(() => null);
+                    setTimeout(startTripPhase, 2500);
+                }
+            }, 150);
+        });
 
         startStatusPolling(state.booking.rideId);
     }
@@ -537,24 +557,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // Advance DB ride: driver_arrived → started
         apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'started' }).catch(() => null);
 
-        const toDropoff = generateRoutePoints(state.booking.pickup, state.booking.dropoff, 60);
-        let idx = 0;
-        state.simulationInterval = setInterval(() => {
-            if (idx < toDropoff.length) {
-                const p = toDropoff[idx++];
-                state.markers.activeDriver.setLatLng([p.lat, p.lng]);
-                state.map.setView([p.lat, p.lng]);
-                const d = calculateDistance(p.lat, p.lng, state.booking.dropoff.lat, state.booking.dropoff.lng);
-                document.getElementById('live-eta').textContent      = Math.max(1, Math.round(d * 3)) + ' min';
-                document.getElementById('live-distance').textContent = d.toFixed(1) + ' km';
-            } else {
-                clearInterval(state.simulationInterval);
-                // Advance DB ride: started → completed (also frees driver)
-                apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'completed' })
-                    .catch(() => null)
-                    .finally(() => showCompletedPanel());
-            }
-        }, 150);
+        fetchRoutePoints(state.booking.pickup, state.booking.dropoff).then(toDropoff => {
+            let idx = 0;
+            state.simulationInterval = setInterval(() => {
+                if (idx < toDropoff.length) {
+                    const p = toDropoff[idx++];
+                    state.markers.activeDriver.setLatLng([p.lat, p.lng]);
+                    state.map.setView([p.lat, p.lng]);
+                    const d = calculateDistance(p.lat, p.lng, state.booking.dropoff.lat, state.booking.dropoff.lng);
+                    document.getElementById('live-eta').textContent      = Math.max(1, Math.round(d * 3)) + ' min';
+                    document.getElementById('live-distance').textContent = d.toFixed(1) + ' km';
+                } else {
+                    clearInterval(state.simulationInterval);
+                    // Advance DB ride: started → completed (also frees driver)
+                    apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'completed' })
+                        .catch(() => null)
+                        .finally(() => showCompletedPanel());
+                }
+            }, 150);
+        });
     }
 
     function stopSimulation() {

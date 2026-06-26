@@ -59,12 +59,23 @@ try {
     $pdo  = Database::getInstance()->getConnection();
 
     // Check for duplicate mobile
-    $chk = $pdo->prepare('SELECT id FROM users WHERE mobile = :mobile LIMIT 1');
-    $chk->execute([':mobile' => $mobile]);
-    if ($chk->fetch()) {
+    $chkMobile = $pdo->prepare('SELECT id FROM users WHERE mobile = :mobile LIMIT 1');
+    $chkMobile->execute([':mobile' => $mobile]);
+    if ($chkMobile->fetch()) {
         http_response_code(409);
-        echo json_encode(['success' => false, 'message' => 'Mobile already registered.']);
+        echo json_encode(['success' => false, 'message' => 'Mobile number is already registered.']);
         exit;
+    }
+
+    // Check for duplicate email (if provided)
+    if ($email !== null) {
+        $chkEmail = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+        $chkEmail->execute([':email' => $email]);
+        if ($chkEmail->fetch()) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => 'Email is already registered.']);
+            exit;
+        }
     }
 
     $stmt = $pdo->prepare(

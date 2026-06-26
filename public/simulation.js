@@ -145,6 +145,28 @@ function generateRoutePoints(start, end, stepsCount = 100) {
     return points;
 }
 
+/**
+ * Fetches real road route geometry from OSRM Demo API.
+ * Falls back to generateRoutePoints if OSRM is offline or fails.
+ */
+async function fetchRoutePoints(start, end) {
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("OSRM routing failed");
+        const data = await response.json();
+        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+            throw new Error("No route found in OSRM");
+        }
+        // Extract coordinate arrays [lng, lat] and map to {lat, lng}
+        const coords = data.routes[0].geometry.coordinates;
+        return coords.map(c => ({ lat: c[1], lng: c[0] }));
+    } catch (e) {
+        console.warn("OSRM API failed, falling back to simulated Bezier route.", e);
+        return generateRoutePoints(start, end, 60);
+    }
+}
+
 // ── Nearby driver generation ──────────────────────────────────────────────────
 
 function generateNearbyDrivers(centerLat, centerLng, count = 5) {

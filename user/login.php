@@ -31,7 +31,7 @@ if ($mobile === '' || $password === '') {
 try {
     $pdo  = Database::getInstance()->getConnection();
     $stmt = $pdo->prepare(
-        'SELECT id, name, password_hash FROM users WHERE mobile = :mobile LIMIT 1'
+        'SELECT id, name, email, password_hash FROM users WHERE mobile = :mobile LIMIT 1'
     );
     $stmt->execute([':mobile' => $mobile]);
     $user = $stmt->fetch();
@@ -53,6 +53,7 @@ try {
         'success'    => true,
         'user_id'    => (int) $user['id'],
         'name'       => $user['name'],
+        'email'      => $user['email'] ?? '',
         'csrf_token' => $_SESSION['csrf_token'],
     ]);
 } catch (Throwable) {

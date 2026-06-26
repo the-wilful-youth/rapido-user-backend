@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rapido - Bike Taxi & Auto Booking App</title>
-    <meta name="description" content="Book instant bike taxis, autos, and cabs with Rapido. Fast, affordable, and safe rides.">
+    <title>Qwikk - Bike Taxi & Auto Booking App</title>
+    <meta name="description" content="Book instant bike taxis, autos, and cabs with Qwikk. Fast, affordable, and safe rides.">
     <meta name="country-code" content="+91">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +19,7 @@
         <!-- 1. WELCOME SCREEN -->
         <div id="screen-welcome" class="screen active welcome-theme">
             <div class="welcome-content">
-                <div class="welcome-brand">Rapido</div>
+                <div class="welcome-brand">Qwikk</div>
                 <h1 class="welcome-slogan">Ride fast.<br>Pay <em>less.</em></h1>
                 <p class="welcome-subtitle">Book a bike taxi, auto, or cab in seconds. Upfront fares, verified captains, every street in your city.</p>
                 <div class="welcome-actions">
@@ -36,7 +36,7 @@
             </button>
             <div class="auth-card">
                 <div class="auth-header">
-                    <div class="welcome-brand text-dark">Rapido</div>
+                    <div class="welcome-brand text-dark">Qwikk</div>
                     <h2>Create Account</h2>
                     <p>Enter your details to get started</p>
                 </div>
@@ -49,6 +49,7 @@
                         <label for="reg-mobile">Mobile Number</label>
                         <div class="phone-input-container">
                             <span class="country-code" id="reg-country-code">+91</span>
+                            <input type="text" id="reg-mobile" placeholder="Enter mobile number" autocomplete="tel" maxlength="10" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                         </div>
                     </div>
                     <div class="form-group-auth">
@@ -75,7 +76,7 @@
             </button>
             <div class="auth-card">
                 <div class="auth-header">
-                    <div class="welcome-brand text-dark">Rapido</div>
+                    <div class="welcome-brand text-dark">Qwikk</div>
                     <h2>Welcome Back</h2>
                     <p>Sign in to continue booking rides</p>
                 </div>
@@ -84,6 +85,7 @@
                         <label for="login-mobile">Mobile Number</label>
                         <div class="phone-input-container">
                             <span class="country-code" id="login-country-code">+91</span>
+                            <input type="text" id="login-mobile" placeholder="Enter mobile number" autocomplete="tel" maxlength="10" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                         </div>
                     </div>
                     <div class="form-group-auth">
@@ -137,7 +139,7 @@
             <main class="app-main-content">
                 <header class="mobile-header">
                     <button id="mobile-menu-toggle"><i data-lucide="menu"></i></button>
-                    <div class="mobile-logo-text">Rapido</div>
+                    <div class="mobile-logo-text">Qwikk</div>
                     <button id="mobile-wallet-btn" class="wallet-badge">
                         <i data-lucide="wallet"></i>
                         <span class="wallet-val">₹0</span>
