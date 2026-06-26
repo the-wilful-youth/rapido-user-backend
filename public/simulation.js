@@ -74,7 +74,7 @@ async function searchPresetLocations(query) {
         }
 
         // Query Photon Geocoding API (powered by OSM and elasticsearch, very fast, no rate blocks)
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&filter=countrycode:in${biasParams}`;
+        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&countrycode=in${biasParams}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error("Photon geocoding failed");
         const data = await response.json();

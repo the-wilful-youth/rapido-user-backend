@@ -371,7 +371,23 @@ document.addEventListener('DOMContentLoaded', () => {
             [state.booking.pickup.lat, state.booking.pickup.lng],
             { icon: pinIcon('pickup-pin') }
         ).addTo(state.map).bindPopup('<b>Pickup</b><br>' + state.booking.pickup.name);
-        state.map.setView([state.booking.pickup.lat, state.booking.pickup.lng], 14);
+        
+        const activeLayers = [];
+        if (state.markers.pickup) activeLayers.push(state.markers.pickup);
+        if (state.markers.dropoff) activeLayers.push(state.markers.dropoff);
+        
+        if (activeLayers.length > 0) {
+            const group = new L.featureGroup(activeLayers);
+            state.map.fitBounds(group.getBounds().pad(0.15));
+        } else {
+            state.map.setView([state.booking.pickup.lat, state.booking.pickup.lng], 14);
+        }
+
+        if (state.booking.pickup && state.booking.dropoff) {
+            drawRoute();
+            showVehiclePicker();
+        }
+        renderNearbyDrivers();
     }
 
     function updateDropoffMarker() {
@@ -649,6 +665,8 @@ document.addEventListener('DOMContentLoaded', () => {
         stopSimulation();
         clearInterval(state.statusPollInterval);
         state.booking.rideId = null;
+        document.getElementById('input-dropoff').value = '';
+        document.getElementById('vehicle-picker').classList.add('hidden');
         showPanel('panel-booking');
         renderNearbyDrivers();
     });
