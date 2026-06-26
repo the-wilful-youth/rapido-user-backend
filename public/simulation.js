@@ -4,61 +4,6 @@
  * No hardcoded user data — all user context lives in app.js state.
  */
 
-// ── Location presets (Jamshedpur / Telco Colony) ─────────────────────────────
-
-const LOCATION_PRESETS = [
-    { name: "Telco Colony",                    lat: 22.7735, lng: 86.2505, address: "Telco Colony, Jamshedpur, Jharkhand 831004" },
-    { name: "Telco Club & Sports Complex",     lat: 22.7780, lng: 86.2520, address: "Telco Club, Jamshedpur, Jharkhand 831004" },
-    { name: "Hudco Lake",                      lat: 22.7668, lng: 86.2492, address: "Govindpur Road, Telco Colony, Jamshedpur 831004" },
-    { name: "Plaza Market Telco",              lat: 22.7752, lng: 86.2468, address: "Telco Town, Jamshedpur 831004" },
-    { name: "Tatanagar Railway Station",       lat: 22.7698, lng: 86.2028, address: "Station Road, Parsudih, Jamshedpur 831002" },
-    { name: "Bistupur Market",                 lat: 22.8015, lng: 86.1798, address: "Main Road, Bistupur, Jamshedpur 831001" },
-    { name: "Sakchi Roundabout",               lat: 22.8022, lng: 86.2025, address: "Sakchi Main Road, Jamshedpur 831001" },
-    { name: "Jubilee Park Main Gate",          lat: 22.8080, lng: 86.1955, address: "Jubilee Park Road, Sakchi, Jamshedpur 831001" },
-    { name: "Golmuri Chowk",                   lat: 22.7885, lng: 86.2162, address: "Golmuri Road, Jamshedpur 831003" },
-    { name: "XLRI Campus",                     lat: 22.8018, lng: 86.1852, address: "Rivers Meet Road, Jamshedpur 831001" },
-    { name: "P&M Hi-Tech City Centre Mall",    lat: 22.8105, lng: 86.1620, address: "Outer Circle Road, Bistupur, Jamshedpur 831001" },
-    { name: "Sonari Airport",                  lat: 22.8152, lng: 86.1685, address: "Airport Road, Sonari, Jamshedpur 831011" },
-    { name: "Kadma Market",                    lat: 22.7952, lng: 86.1582, address: "Main Road, Kadma, Jamshedpur 831005" },
-    { name: "Adityapur Industrial Area",       lat: 22.7835, lng: 86.1420, address: "Tata Kandra Road, Adityapur, Jamshedpur 831013" },
-    { name: "Keenan Stadium",                  lat: 22.8042, lng: 86.1982, address: "Northern Town, Sakchi, Jamshedpur 831001" },
-    { name: "Tata Main Hospital (TMH)",        lat: 22.7995, lng: 86.1895, address: "Inner Circle Road, Bistupur, Jamshedpur 831001" },
-    { name: "Bhalubasa Bridge",                lat: 22.8068, lng: 86.2205, address: "Bhalubasa Main Road, Jamshedpur 831009" },
-    { name: "Baridih Market",                  lat: 22.7925, lng: 86.2458, address: "Baridih Chowk, Jamshedpur 831017" },
-    { name: "Sidhgora Town Hall",              lat: 22.7988, lng: 86.2345, address: "Sidhgora Road, Jamshedpur 831009" },
-    { name: "Mango Chowk",                     lat: 22.8222, lng: 86.2095, address: "Purulia Road, Mango, Jamshedpur 831012" },
-    { name: "Dimna Lake Resort",               lat: 22.8525, lng: 86.2305, address: "Dimna Road, Mirzadih, Jamshedpur 831018" },
-    { name: "Loyola School Ground",            lat: 22.8002, lng: 86.1915, address: "Straight Mile Road, Beldih, Jamshedpur 831001" },
-    { name: "G-Town Club",                     lat: 22.7968, lng: 86.1822, address: "Road No 4, Bistupur, Jamshedpur 831001" },
-    { name: "Regal Ground",                    lat: 22.8032, lng: 86.1802, address: "Regal Circle, Bistupur, Jamshedpur 831001" },
-    { name: "Marine Drive Promenade",          lat: 22.8188, lng: 86.1552, address: "Marine Drive Road, Sonari, Jamshedpur 831011" },
-    { name: "Govindpur Chowk",                 lat: 22.7552, lng: 86.2758, address: "Hata-Jamshedpur Highway, Govindpur 831015" },
-    { name: "Parsudih Market",                 lat: 22.7522, lng: 86.2085, address: "Haludbani Main Road, Parsudih, Jamshedpur 831002" },
-    { name: "Sundarnagar Chowk",               lat: 22.7305, lng: 86.2125, address: "Sundarnagar Road, Jamshedpur 831002" },
-    { name: "Karandih Chowk",                  lat: 22.7482, lng: 86.2065, address: "Tata-Chaibasa Road, Karandih, Jamshedpur 831002" },
-    { name: "Beldih Club",                     lat: 22.8005, lng: 86.1870, address: "Beldih Triangle, Northern Town, Jamshedpur 831001" },
-    { name: "Circuit House Area",              lat: 22.8048, lng: 86.1805, address: "Circuit House Road, Bistupur, Jamshedpur 831001" },
-    { name: "Gopal Maidan",                    lat: 22.8010, lng: 86.1835, address: "Bistupur Main Road, Jamshedpur 831001" },
-    { name: "Tata Steel Zoological Park",      lat: 22.8095, lng: 86.1985, address: "Jubilee Park Road, Sakchi, Jamshedpur 831001" },
-    { name: "Dalma Wildlife Sanctuary Gate",   lat: 22.8750, lng: 86.2180, address: "National Highway 33, Mango, Jamshedpur 831012" },
-    { name: "NML (National Metallurgical Lab)", lat: 22.7938, lng: 86.2090, address: "Burmamines Main Road, Jamshedpur 831007" },
-    { name: "Burmamines Market",               lat: 22.7915, lng: 86.2135, address: "Station Road, Burmamines, Jamshedpur 831007" },
-    { name: "Bhuvaneshwari Temple (Telco)",    lat: 22.7635, lng: 86.2625, address: "Bhuvaneshwari Temple Road, Telco Colony 831004" },
-    { name: "Kharangajhar Market",             lat: 22.7715, lng: 86.2585, address: "Telco Main Road, Kharangajhar, Jamshedpur 831004" },
-    { name: "Vikas Vidyalaya Ground",          lat: 22.7760, lng: 86.2645, address: "Hill Top Road, Telco Colony, Jamshedpur 831004" },
-    { name: "Telco Gurudwara",                 lat: 22.7745, lng: 86.2545, address: "Plaza Market Road, Telco Colony, Jamshedpur 831004" },
-    { name: "ISWP Sports Ground",              lat: 22.7845, lng: 86.2365, address: "Telco Road, Jamshedpur 831004" },
-    { name: "Jamshedpur Public School (JPS)",  lat: 22.7910, lng: 86.2485, address: "Baridih Main Road, Jamshedpur 831017" },
-    { name: "Govindpur Railway Overbridge",    lat: 22.7610, lng: 86.2795, address: "Govindpur Road, Jamshedpur 831015" },
-    { name: "Dhatkidih Community Centre",      lat: 22.7985, lng: 86.1730, address: "Dhatkidih Main Road, Jamshedpur 831001" },
-    { name: "Sonari Ram Mandir",               lat: 22.8122, lng: 86.1645, address: "Ram Mandir Road, Sonari, Jamshedpur 831011" },
-    { name: "Chhaya Nagar",                    lat: 22.8255, lng: 86.1995, address: "Mango Bridge Link Road, Jamshedpur 831012" },
-    { name: "Karim City College",              lat: 22.8008, lng: 86.2045, address: "Mango Road, Sakchi, Jamshedpur 831001" },
-    { name: "Jamshedpur Eye Hospital",         lat: 22.8038, lng: 86.2005, address: "Sakchi Main Road, Jamshedpur 831001" },
-    { name: "Sabuj Kalyan Sangha",             lat: 22.7792, lng: 86.2485, address: "Telco Town, Jamshedpur 831004" },
-    { name: "Jamshedpur Co-operative College", lat: 22.8090, lng: 86.1890, address: "College Road, Jamshedpur 831001" }
-];
-
 // ── Vehicle definitions (used to build the ride-option cards) ─────────────────
 
 const VEHICLE_TYPES = [
@@ -113,14 +58,45 @@ function calculatePrices(distance) {
     return { prices, etas };
 }
 
-// ── Autocomplete search ───────────────────────────────────────────────────────
+// ── Autocomplete search (Nominatim Geocoding API + Presets Fallback) ─────────
 
-function searchPresetLocations(query) {
-    if (!query || query.trim() === '') return LOCATION_PRESETS;
-    const q = query.toLowerCase();
-    return LOCATION_PRESETS.filter(l =>
-        l.name.toLowerCase().includes(q) || l.address.toLowerCase().includes(q)
-    );
+async function searchPresetLocations(query) {
+    if (!query || query.trim().length < 2) {
+        return [];
+    }
+    const q = query.trim();
+    try {
+        let biasParams = "";
+        if (window.state && window.state.map) {
+            const center = window.state.map.getCenter();
+            // Bias coordinates to current map center
+            biasParams = `&lat=${center.lat}&lon=${center.lng}`;
+        }
+
+        // Query Photon Geocoding API (powered by OSM and elasticsearch, very fast, no rate blocks)
+        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&filter=countrycode:in${biasParams}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Photon geocoding failed");
+        const data = await response.json();
+        
+        if (data && data.features && data.features.length > 0) {
+            return data.features.map(f => {
+                const props = f.properties;
+                const city = props.city || props.town || props.state || "";
+                const street = props.street || props.name || "";
+                const dispName = [street, props.district, city].filter(Boolean).join(', ');
+                return {
+                    name: props.name || street || city || "Location",
+                    lat: f.geometry.coordinates[1],
+                    lng: f.geometry.coordinates[0],
+                    address: dispName || props.state || "India"
+                };
+            });
+        }
+    } catch (e) {
+        console.warn("Photon Geocoding API request failed.", e);
+    }
+    return [];
 }
 
 // ── Route generation ──────────────────────────────────────────────────────────
@@ -177,4 +153,37 @@ function generateNearbyDrivers(centerLat, centerLng, count = 5) {
         lat: centerLat + (Math.random() - 0.5) * 0.015,
         lng: centerLng + (Math.random() - 0.5) * 0.015
     }));
+}
+
+/**
+ * Reverse geocodes coordinates to a location name and address using Photon API.
+ */
+async function reverseGeocode(lat, lng) {
+    try {
+        const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Reverse geocoding failed");
+        const data = await response.json();
+        if (data && data.features && data.features.length > 0) {
+            const f = data.features[0];
+            const props = f.properties;
+            const city = props.city || props.town || props.state || "";
+            const street = props.street || props.name || "";
+            const dispName = [street, props.district, city].filter(Boolean).join(', ');
+            return {
+                name: props.name || street || city || "Pinned Location",
+                address: dispName || props.state || "India",
+                lat: lat,
+                lng: lng
+            };
+        }
+    } catch (e) {
+        console.warn("Reverse geocoding failed, using coordinates fallback.", e);
+    }
+    return {
+        name: "Pinned Location",
+        address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+        lat: lat,
+        lng: lng
+    };
 }

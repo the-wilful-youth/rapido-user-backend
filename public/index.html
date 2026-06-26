@@ -180,7 +180,10 @@
 
                             <!-- Vehicle picker (shown after destination selected) -->
                             <div id="vehicle-picker" class="hidden">
-                                <h3>Available Rides</h3>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <h3>Available Rides</h3>
+                                    <span id="vehicle-picker-distance" style="font-size:0.9rem; font-weight:600; color:var(--text-light); background:var(--bg-light); padding:4px 8px; border-radius:12px;">0.0 km</span>
+                                </div>
                                 <div class="ride-options" id="ride-options-container">
                                     <!-- Populated dynamically by app.js -->
                                 </div>

@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         simulationInterval: null,
         statusPollInterval: null
     };
+    window.state = state;
 
     const sessionRides    = [];
     const sessionPayments = [];
@@ -181,6 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('profile-phone').value = state.countryCode + ' ' + state.user.phone;
         document.getElementById('profile-email').value = state.user.email;
 
+        // Explicitly set panel visibility and active sidebar navigation states
+        document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+        const dashboardBtn = document.querySelector('.menu-item[data-target="dashboard"]');
+        if (dashboardBtn) dashboardBtn.classList.add('active');
+        showPanel('panel-booking');
+
         switchScreen('screen-app');
         initLeafletMap();
     }
@@ -201,7 +208,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const target = item.getAttribute('data-target');
             document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
             item.classList.add('active');
-            showPanel('panel-' + target);
+            if (target === 'dashboard') {
+                showPanel('panel-booking');
+            } else {
+                showPanel('panel-' + target);
+            }
             if (target === 'history') renderHistoryList();
             if (target === 'wallet')  renderWalletPanel();
             if (window.innerWidth <= 900) document.querySelector('.sidebar').classList.remove('open');
@@ -227,9 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function initLeafletMap() {
         if (state.map) return;
 
-        const defaultLoc = LOCATION_PRESETS[0]; // Telco Colony
+        // Default fallback: New Delhi center
+        const defaultLoc = { name: "New Delhi", lat: 28.6139, lng: 77.2090, address: "New Delhi, Delhi, India" };
         state.booking.pickup = defaultLoc;
         document.getElementById('input-pickup').value = defaultLoc.name;
+
+        // Ensure global state maps bindings are accessible immediately
+        window.state = state;
 
         state.map = L.map('leaflet-map-container', { zoomControl: false, attributionControl: false })
             .setView([defaultLoc.lat, defaultLoc.lng], 14);
@@ -237,8 +252,96 @@ document.addEventListener('DOMContentLoaded', () => {
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(state.map);
         L.control.zoom({ position: 'bottomright' }).addTo(state.map);
 
+        // Render initial marker and nearby drivers immediately
         updatePickupMarker();
         renderNearbyDrivers();
+
+        // Force Leaflet to recalculate container bounds (resolves gray map tiles inside layouts)
+        setTimeout(() => {
+            if (state.map) state.map.invalidateSize();
+        }, 300);
+
+        // Request browser geolocation to center on user's real state/city
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    
+                    // Reverse geocode user location using free Nominatim API to get location name
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`, {
+                        headers: {
+                            'User-Agent': 'QwikkBikeTaxiApp/1.0 (anurag@qwikk.co)',
+                            'Accept-Language': 'en-US,en;q=0.9'
+                        }
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            const name = data.address.suburb || data.address.neighbourhood || data.address.city || "My Location";
+                            const addr = data.display_name;
+                            
+                            state.booking.pickup = { name: name, lat: userLat, lng: userLng, address: addr };
+                            document.getElementById('input-pickup').value = name;
+                            
+                            state.map.setView([userLat, userLng], 14);
+                            updatePickupMarker();
+                            renderNearbyDrivers();
+                        })
+                        .catch(() => {
+                            // Fallback to coordinates only if geocoding fails
+                            state.booking.pickup = { name: "Current Location", lat: userLat, lng: userLng, address: `${userLat}, ${userLng}` };
+                            document.getElementById('input-pickup').value = "Current Location";
+                            state.map.setView([userLat, userLng], 14);
+                            updatePickupMarker();
+                            renderNearbyDrivers();
+                        });
+                },
+                (error) => {
+                    console.warn("Geolocation permission denied or failed. Defaulting to India capital.", error);
+                    updatePickupMarker();
+                    renderNearbyDrivers();
+                }
+            );
+        } else {
+            updatePickupMarker();
+            renderNearbyDrivers();
+        }
+
+        // Let the user tap/click on the map directly to pinpoint their locations
+        state.map.on('click', async (e) => {
+            const clickLat = e.latlng.lat;
+            const clickLng = e.latlng.lng;
+            
+            // Reverse geocode the coordinate to get a pretty name
+            const locObj = await reverseGeocode(clickLat, clickLng);
+            
+            // Check which field is active/empty to assign click coordinates
+            if (state.activeSearchInput === 'pickup') {
+                state.booking.pickup = locObj;
+                document.getElementById('input-pickup').value = locObj.name;
+                updatePickupMarker();
+                renderNearbyDrivers();
+            } else if (state.activeSearchInput === 'dropoff') {
+                state.booking.dropoff = locObj;
+                document.getElementById('input-dropoff').value = locObj.name;
+                updateDropoffMarker();
+                showVehiclePicker();
+            } else {
+                // Fallback context: if none is active, set the first empty one
+                if (!state.booking.pickup) {
+                    state.booking.pickup = locObj;
+                    document.getElementById('input-pickup').value = locObj.name;
+                    updatePickupMarker();
+                    renderNearbyDrivers();
+                } else {
+                    state.booking.dropoff = locObj;
+                    document.getElementById('input-dropoff').value = locObj.name;
+                    updateDropoffMarker();
+                    showVehiclePicker();
+                }
+            }
+        });
+
         setInterval(animateNearbyDrivers, 4000);
         refreshIcons();
     }
@@ -252,8 +355,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updatePickupMarker() {
-        if (!state.map || !state.booking.pickup) return;
-        if (state.markers.pickup) state.map.removeLayer(state.markers.pickup);
+        if (!state.map) return;
+        if (state.markers.pickup) {
+            state.map.removeLayer(state.markers.pickup);
+            state.markers.pickup = null;
+        }
+        if (!state.booking.pickup) {
+            if (state.routePolyline) {
+                state.map.removeLayer(state.routePolyline);
+                state.routePolyline = null;
+            }
+            return;
+        }
         state.markers.pickup = L.marker(
             [state.booking.pickup.lat, state.booking.pickup.lng],
             { icon: pinIcon('pickup-pin') }
@@ -262,20 +375,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateDropoffMarker() {
-        if (!state.map || !state.booking.dropoff) return;
-        if (state.markers.dropoff) state.map.removeLayer(state.markers.dropoff);
+        if (!state.map) return;
+        if (state.markers.dropoff) {
+            state.map.removeLayer(state.markers.dropoff);
+            state.markers.dropoff = null;
+        }
+        if (!state.booking.dropoff) {
+            if (state.routePolyline) {
+                state.map.removeLayer(state.routePolyline);
+                state.routePolyline = null;
+            }
+            return;
+        }
         state.markers.dropoff = L.marker(
             [state.booking.dropoff.lat, state.booking.dropoff.lng],
             { icon: pinIcon('') }
         ).addTo(state.map).bindPopup('<b>Destination</b><br>' + state.booking.dropoff.name);
-        const group = new L.featureGroup([state.markers.pickup, state.markers.dropoff]);
-        state.map.fitBounds(group.getBounds().pad(0.15));
-        drawRoute();
+        
+        const activeLayers = [];
+        if (state.markers.pickup) activeLayers.push(state.markers.pickup);
+        if (state.markers.dropoff) activeLayers.push(state.markers.dropoff);
+        
+        if (activeLayers.length > 0) {
+            const group = new L.featureGroup(activeLayers);
+            state.map.fitBounds(group.getBounds().pad(0.15));
+        }
+        
+        if (state.booking.pickup && state.booking.dropoff) {
+            drawRoute();
+        }
     }
 
     async function drawRoute() {
         if (!state.map) return;
-        if (state.routePolyline) state.map.removeLayer(state.routePolyline);
+        if (state.routePolyline) {
+            state.map.removeLayer(state.routePolyline);
+            state.routePolyline = null;
+        }
+        if (!state.booking.pickup || !state.booking.dropoff) return;
         const ptsData = await fetchRoutePoints(state.booking.pickup, state.booking.dropoff);
         const pts = ptsData.map(p => [p.lat, p.lng]);
         state.routePolyline = L.polyline(pts, {
@@ -287,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.map) return;
         state.markers.nearbyDrivers.forEach(m => state.map.removeLayer(m));
         state.markers.nearbyDrivers = [];
-        const { lat, lng } = state.booking.pickup || LOCATION_PRESETS[0];
+        const { lat, lng } = state.booking.pickup || { lat: 28.6139, lng: 77.2090 };
         generateNearbyDrivers(lat, lng, 6).forEach(d => {
             const icon = L.divIcon({
                 html: `<div class="driver-marker-pulse"><i data-lucide="${d.type === 'bike' ? 'bike' : 'car'}"></i></div>`,
@@ -316,8 +453,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropoffInput = document.getElementById('input-dropoff');
         const suggBox      = document.getElementById('autocomplete-suggestions');
 
-        function showSuggestions(query) {
-            const list = searchPresetLocations(query).slice(0, 8);
+        async function showSuggestions(query) {
+            const listData = await searchPresetLocations(query);
+            const list = listData.slice(0, 8);
             if (!list.length) { suggBox.classList.add('hidden'); return; }
             suggBox.innerHTML = '';
             list.forEach(item => {
@@ -328,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="suggestion-name">${item.name}</span>
                         <span class="suggestion-address">${item.address}</span>
                     </div>`;
-                row.addEventListener('mousedown', () => selectLocation(item));
+                row.addEventListener('click', () => selectLocation(item));
                 suggBox.appendChild(row);
             });
             suggBox.classList.remove('hidden');
@@ -349,32 +487,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        pickupInput.addEventListener('focus',  () => { state.activeSearchInput = 'pickup';  showSuggestions(''); });
-        dropoffInput.addEventListener('focus', () => { state.activeSearchInput = 'dropoff'; showSuggestions(''); });
-        pickupInput.addEventListener('input',  e => showSuggestions(e.target.value));
-        dropoffInput.addEventListener('input', e => showSuggestions(e.target.value));
+        // Debounce search function to reduce request rate and increase responsiveness
+        function debounce(func, delay = 400) {
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(null, args);
+                }, delay);
+            };
+        }
+
+        const debouncedShowSuggestions = debounce((val) => showSuggestions(val), 350);
+
+        pickupInput.addEventListener('focus',  () => { state.activeSearchInput = 'pickup'; });
+        dropoffInput.addEventListener('focus', () => { state.activeSearchInput = 'dropoff'; });
+        pickupInput.addEventListener('input',  e => debouncedShowSuggestions(e.target.value));
+        dropoffInput.addEventListener('input', e => debouncedShowSuggestions(e.target.value));
 
         document.getElementById('clear-pickup').addEventListener('click', () => {
             pickupInput.value = '';
             state.booking.pickup = null;
             suggBox.classList.add('hidden');
+            updatePickupMarker();
+            document.getElementById('vehicle-picker').classList.add('hidden');
         });
         document.getElementById('clear-dropoff').addEventListener('click', () => {
             dropoffInput.value = '';
             state.booking.dropoff = null;
             suggBox.classList.add('hidden');
+            updateDropoffMarker();
             document.getElementById('vehicle-picker').classList.add('hidden');
         });
 
-        document.getElementById('btn-home-shortcut').addEventListener('click', () => {
+        document.getElementById('btn-home-shortcut').addEventListener('click', async () => {
             if (!state.user.homeAddress) return;
-            const match = searchPresetLocations(state.user.homeAddress)[0];
-            if (match) { state.activeSearchInput = 'dropoff'; selectLocation(match); }
+            state.activeSearchInput = 'dropoff';
+            const matches = await searchPresetLocations(state.user.homeAddress);
+            if (matches && matches.length > 0) { selectLocation(matches[0]); }
         });
-        document.getElementById('btn-work-shortcut').addEventListener('click', () => {
+        document.getElementById('btn-work-shortcut').addEventListener('click', async () => {
             if (!state.user.workAddress) return;
-            const match = searchPresetLocations(state.user.workAddress)[0];
-            if (match) { state.activeSearchInput = 'dropoff'; selectLocation(match); }
+            state.activeSearchInput = 'dropoff';
+            const matches = await searchPresetLocations(state.user.workAddress);
+            if (matches && matches.length > 0) { selectLocation(matches[0]); }
         });
 
         document.addEventListener('click', e => {
@@ -395,6 +551,9 @@ document.addEventListener('DOMContentLoaded', () => {
             state.booking.dropoff.lat, state.booking.dropoff.lng
         );
         state.booking.distance = parseFloat(dist.toFixed(2));
+        const distEl = document.getElementById('vehicle-picker-distance');
+        if (distEl) distEl.textContent = state.booking.distance + " km";
+
         const { prices, etas } = calculatePrices(dist);
         state.booking.fares = prices;
         state.booking.etas  = etas;
