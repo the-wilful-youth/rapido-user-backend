@@ -667,6 +667,18 @@ input, textarea {
     color: var(--text-secondary);
 }
 
+.suggestion-type-badge {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--secondary);
+    background-color: var(--primary-light);
+    border: 1px solid var(--primary-dark);
+    padding: 1px 5px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 /* Shortcuts Button Group */
 .saved-places-shortcut {
     display: flex;

@@ -69,8 +69,8 @@ async function searchPresetLocations(query) {
         let biasParams = "";
         if (window.state && window.state.map) {
             const center = window.state.map.getCenter();
-            // Bias coordinates to current map center
-            biasParams = `&lat=${center.lat}&lon=${center.lng}`;
+            // Bias coordinates to current map center and increase scale to prioritize local results
+            biasParams = `&lat=${center.lat}&lon=${center.lng}&location_bias_scale=2.5`;
         }
 
         // Query Photon Geocoding API (powered by OSM and elasticsearch, very fast, no rate blocks)
@@ -82,14 +82,24 @@ async function searchPresetLocations(query) {
         if (data && data.features && data.features.length > 0) {
             return data.features.map(f => {
                 const props = f.properties;
-                const city = props.city || props.town || props.state || "";
-                const street = props.street || props.name || "";
-                const dispName = [street, props.district, city].filter(Boolean).join(', ');
+                const name = props.name || props.street || props.locality || props.city || "Location";
+                
+                // Build a descriptive, structured address list
+                const addrParts = [];
+                if (props.street && props.street !== name) addrParts.push(props.street);
+                if (props.locality && props.locality !== name) addrParts.push(props.locality);
+                if (props.district) addrParts.push(props.district);
+                if (props.city && props.city !== name) addrParts.push(props.city);
+                if (props.state) addrParts.push(props.state);
+                if (props.postcode) addrParts.push(props.postcode);
+                
+                const address = addrParts.filter(Boolean).join(', ') || props.country || "India";
+                
                 return {
-                    name: props.name || street || city || "Location",
+                    name: name,
                     lat: f.geometry.coordinates[1],
                     lng: f.geometry.coordinates[0],
-                    address: dispName || props.state || "India"
+                    address: address
                 };
             });
         }
@@ -136,11 +146,31 @@ async function fetchRoutePoints(start, end) {
         }
         // Extract coordinate arrays [lng, lat] and map to {lat, lng}
         const coords = data.routes[0].geometry.coordinates;
-        return coords.map(c => ({ lat: c[1], lng: c[0] }));
+        const points = coords.map(c => ({ lat: c[1], lng: c[0] }));
+        points.distance = data.routes[0].distance / 1000; // km
+        points.duration = data.routes[0].duration / 60; // minutes
+        return points;
     } catch (e) {
         console.warn("OSRM API failed, falling back to simulated Bezier route.", e);
-        return generateRoutePoints(start, end, 60);
+        const points = generateRoutePoints(start, end, 60);
+        points.distance = calculateDistance(start.lat, start.lng, end.lat, end.lng) * 1.25;
+        points.duration = Math.max(2, points.distance * 2);
+        return points;
     }
+}
+
+/**
+ * Calculates bearing between two coordinates in degrees.
+ */
+function calculateBearing(lat1, lon1, lat2, lon2) {
+    const dLon = deg2rad(lon2 - lon1);
+    const lat1Rad = deg2rad(lat1);
+    const lat2Rad = deg2rad(lat2);
+    const y = Math.sin(dLon) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+    const brng = Math.atan2(y, x);
+    return (brng * 180 / Math.PI + 360) % 360;
 }
 
 // ── Nearby driver generation ──────────────────────────────────────────────────
@@ -156,11 +186,35 @@ function generateNearbyDrivers(centerLat, centerLng, count = 5) {
 }
 
 /**
+ * Snaps a coordinate to the nearest drivable road using OSRM Nearest API.
+ */
+async function snapToNearestRoad(lat, lng) {
+    try {
+        const url = `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("OSRM nearest snap failed");
+        const data = await response.json();
+        if (data.code === 'Ok' && data.waypoints && data.waypoints.length > 0) {
+            const roadLoc = data.waypoints[0].location; // [lng, lat]
+            return { lat: roadLoc[1], lng: roadLoc[0], name: data.waypoints[0].name };
+        }
+    } catch (e) {
+        console.warn("OSRM nearest snap failed, using original point.", e);
+    }
+    return { lat, lng, name: "" };
+}
+
+/**
  * Reverse geocodes coordinates to a location name and address using Photon API.
  */
 async function reverseGeocode(lat, lng) {
+    // Snap to nearest drivable road first for maximum precision
+    const snapped = await snapToNearestRoad(lat, lng);
+    const queryLat = snapped.lat;
+    const queryLng = snapped.lng;
+
     try {
-        const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+        const url = `https://photon.komoot.io/reverse?lat=${queryLat}&lon=${queryLng}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error("Reverse geocoding failed");
         const data = await response.json();
@@ -173,8 +227,8 @@ async function reverseGeocode(lat, lng) {
             return {
                 name: props.name || street || city || "Pinned Location",
                 address: dispName || props.state || "India",
-                lat: lat,
-                lng: lng
+                lat: queryLat,
+                lng: queryLng
             };
         }
     } catch (e) {
@@ -182,8 +236,8 @@ async function reverseGeocode(lat, lng) {
     }
     return {
         name: "Pinned Location",
-        address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        lat: lat,
-        lng: lng
+        address: `${queryLat.toFixed(4)}, ${queryLng.toFixed(4)}`,
+        lat: queryLat,
+        lng: queryLng
     };
 }

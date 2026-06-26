@@ -434,6 +434,29 @@ document.addEventListener('DOMContentLoaded', () => {
         state.routePolyline = L.polyline(pts, {
             color: '#1F2229', weight: 5, opacity: 0.8, dashArray: '1, 10', lineCap: 'round'
         }).addTo(state.map);
+
+        if (ptsData.distance) {
+            state.booking.distance = parseFloat(ptsData.distance.toFixed(2));
+            const distEl = document.getElementById('vehicle-picker-distance');
+            if (distEl) distEl.textContent = state.booking.distance + " km";
+
+            const { prices, etas } = calculatePrices(state.booking.distance);
+            state.booking.fares = prices;
+            state.booking.etas  = etas;
+
+            const container = document.getElementById('ride-options-container');
+            if (container) {
+                VEHICLE_TYPES.forEach(v => {
+                    const card = container.querySelector(`[data-vehicle="${v.key}"]`);
+                    if (card) {
+                        const priceEl = card.querySelector('.ride-price');
+                        const etaEl = card.querySelector('.ride-eta');
+                        if (priceEl) priceEl.textContent = '₹' + prices[v.key];
+                        if (etaEl) etaEl.textContent = etas[v.key] + ' mins';
+                    }
+                });
+            }
+        }
     }
 
     function renderNearbyDrivers() {
@@ -477,9 +500,13 @@ document.addEventListener('DOMContentLoaded', () => {
             list.forEach(item => {
                 const row = document.createElement('div');
                 row.className = 'suggestion-item';
-                row.innerHTML = `<i data-lucide="map-pin"></i>
+                const badgeHtml = item.type ? `<span class="suggestion-type-badge">${item.type}</span>` : '';
+                row.innerHTML = `<i data-lucide="${item.icon || 'map-pin'}"></i>
                     <div class="suggestion-details">
-                        <span class="suggestion-name">${item.name}</span>
+                        <div class="suggestion-header" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                            <span class="suggestion-name">${item.name}</span>
+                            ${badgeHtml}
+                        </div>
                         <span class="suggestion-address">${item.address}</span>
                     </div>`;
                 row.addEventListener('click', () => selectLocation(item));
@@ -489,8 +516,14 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshIcons();
         }
 
-        function selectLocation(item) {
+        async function selectLocation(item) {
             suggBox.classList.add('hidden');
+            
+            // Snap coordinates to nearest road network for exact street positioning
+            const snapped = await snapToNearestRoad(item.lat, item.lng);
+            item.lat = snapped.lat;
+            item.lng = snapped.lng;
+
             if (state.activeSearchInput === 'pickup') {
                 pickupInput.value = item.name;
                 state.booking.pickup = item;
@@ -707,6 +740,17 @@ document.addEventListener('DOMContentLoaded', () => {
             state.simulationInterval = setInterval(() => {
                 if (idx < toPickup.length) {
                     const p = toPickup[idx++];
+                    const prevLatLng = state.markers.activeDriver.getLatLng();
+                    if (prevLatLng.lat !== p.lat || prevLatLng.lng !== p.lng) {
+                        const bearing = calculateBearing(prevLatLng.lat, prevLatLng.lng, p.lat, p.lng);
+                        const iconEl = state.markers.activeDriver.getElement();
+                        if (iconEl) {
+                            const innerIcon = iconEl.querySelector('.driver-marker-pulse');
+                            if (innerIcon) {
+                                innerIcon.style.transform = `rotate(${bearing}deg)`;
+                            }
+                        }
+                    }
                     state.markers.activeDriver.setLatLng([p.lat, p.lng]);
                     const d = calculateDistance(p.lat, p.lng, state.booking.pickup.lat, state.booking.pickup.lng);
                     document.getElementById('live-eta').textContent      = Math.max(1, Math.round(d * 3)) + ' min';
@@ -739,6 +783,17 @@ document.addEventListener('DOMContentLoaded', () => {
             state.simulationInterval = setInterval(() => {
                 if (idx < toDropoff.length) {
                     const p = toDropoff[idx++];
+                    const prevLatLng = state.markers.activeDriver.getLatLng();
+                    if (prevLatLng.lat !== p.lat || prevLatLng.lng !== p.lng) {
+                        const bearing = calculateBearing(prevLatLng.lat, prevLatLng.lng, p.lat, p.lng);
+                        const iconEl = state.markers.activeDriver.getElement();
+                        if (iconEl) {
+                            const innerIcon = iconEl.querySelector('.driver-marker-pulse');
+                            if (innerIcon) {
+                                innerIcon.style.transform = `rotate(${bearing}deg)`;
+                            }
+                        }
+                    }
                     state.markers.activeDriver.setLatLng([p.lat, p.lng]);
                     state.map.setView([p.lat, p.lng]);
                     const d = calculateDistance(p.lat, p.lng, state.booking.dropoff.lat, state.booking.dropoff.lng);
