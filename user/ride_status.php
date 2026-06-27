@@ -92,4 +92,8 @@ echo json_encode([
     'distance'       => (float) $row['distance_km'],
     'driver_name'    => $row['driver_name'],       // null until driver assigned
     'vehicle_number' => $row['vehicle_number'],    // null until driver assigned
+    'pickup_lat'     => $row['pickup_lat'] !== null ? (float)$row['pickup_lat'] : null,
+    'pickup_lng'     => $row['pickup_lng'] !== null ? (float)$row['pickup_lng'] : null,
+    'dropoff_lat'    => $row['dropoff_lat'] !== null ? (float)$row['dropoff_lat'] : null,
+    'dropoff_lng'    => $row['dropoff_lng'] !== null ? (float)$row['dropoff_lng'] : null,
 ]);

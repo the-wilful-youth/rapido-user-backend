@@ -22,7 +22,7 @@ try {
     
     // Fetch all rides in 'waiting' status (available requests)
     $stmt = $pdo->prepare(
-        'SELECT r.id, r.pickup_location, r.destination, r.distance_km, r.fare, r.created_at, u.name AS user_name
+        'SELECT r.id, r.pickup_location, r.pickup_lat, r.pickup_lng, r.destination, r.dropoff_lat, r.dropoff_lng, r.distance_km, r.fare, r.created_at, u.name AS user_name
          FROM rides r
          JOIN users u ON r.user_id = u.id
          WHERE r.ride_status = "waiting" AND r.driver_id IS NULL
@@ -30,6 +30,13 @@ try {
     );
     $stmt->execute();
     $rides = $stmt->fetchAll();
+    
+    foreach ($rides as &$ride) {
+        $ride['pickup_lat'] = $ride['pickup_lat'] !== null ? (float)$ride['pickup_lat'] : null;
+        $ride['pickup_lng'] = $ride['pickup_lng'] !== null ? (float)$ride['pickup_lng'] : null;
+        $ride['dropoff_lat'] = $ride['dropoff_lat'] !== null ? (float)$ride['dropoff_lat'] : null;
+        $ride['dropoff_lng'] = $ride['dropoff_lng'] !== null ? (float)$ride['dropoff_lng'] : null;
+    }
     
     echo json_encode([
         'success' => true,

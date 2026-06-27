@@ -395,15 +395,34 @@
                                     <label>Full Name</label>
                                     <input type="text" id="profile-name" placeholder="Full Name">
                                 </div>
-                                <div class="form-group">
-                                    <label>Email Address</label>
-                                    <input type="email" id="profile-email" placeholder="you@example.com">
+                                <div id="profile-passenger-fields">
+                                    <div class="form-group">
+                                        <label>Email Address</label>
+                                        <input type="email" id="profile-email" placeholder="you@example.com">
+                                    </div>
+                                </div>
+                                <div id="profile-driver-fields" class="hidden" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
+                                    <div class="form-group">
+                                        <label>Vehicle Number</label>
+                                        <input type="text" id="profile-vehicle-num" placeholder="KA-01-XX-XXXX" style="padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; font-size: 0.95rem; background: var(--bg-main); color: var(--text-main);">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Vehicle Type</label>
+                                        <select id="profile-vehicle-type" style="padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; width: 100%; outline: none; font-size: 0.95rem; background: var(--bg-main); color: var(--text-main); font-family: inherit;">
+                                            <option value="bike">Bike</option>
+                                            <option value="scooty">Scooty</option>
+                                            <option value="auto">Auto</option>
+                                            <option value="bike-pink">Pink Bike (Women)</option>
+                                            <option value="cab-economy">Cab Economy</option>
+                                            <option value="cab-premium">Cab Premium</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Phone Number</label>
                                     <input type="text" id="profile-phone" disabled>
                                 </div>
-                                <div class="saved-addresses-config">
+                                <div class="saved-addresses-config" id="profile-saved-places">
                                     <h3>Saved Places</h3>
                                     <div class="saved-address-row">
                                         <div class="icon-wrap"><i data-lucide="home"></i></div>

@@ -41,6 +41,11 @@ $userId = $_SESSION['user_id'];
 $pickup = trim((string)($_POST['pickup_location'] ?? ''));
 $dest   = trim((string)($_POST['destination']     ?? ''));
 
+$pickupLat  = (float)($_POST['pickup_lat'] ?? 0.0);
+$pickupLng  = (float)($_POST['pickup_lng'] ?? 0.0);
+$dropoffLat = (float)($_POST['dropoff_lat'] ?? 0.0);
+$dropoffLng = (float)($_POST['dropoff_lng'] ?? 0.0);
+
 // ── Validation ────────────────────────────────────────────────────────────────
 
 $errors = [];
@@ -81,14 +86,14 @@ $otp      = (string)mt_rand(1000, 9999);
 
 try {
     $ride   = new Ride(Database::getInstance()->getConnection());
-    $rideId = $ride->createRide($userId, $pickup, $dest, $distance, $fare, $otp);
+    $rideId = $ride->createRide($userId, $pickup, $dest, $distance, $fare, $otp, $pickupLat, $pickupLng, $dropoffLat, $dropoffLng);
 } catch (InvalidArgumentException $e) {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     exit;
-} catch (Throwable) {
+} catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Could not create ride.']);
+    echo json_encode(['success' => false, 'message' => 'Could not create ride: ' . $e->getMessage()]);
     exit;
 }
 

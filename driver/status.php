@@ -35,7 +35,7 @@ try {
     
     // Fetch active assigned ride if any
     $rideStmt = $pdo->prepare(
-        'SELECT r.id, r.user_id, r.pickup_location, r.destination, r.distance_km, r.fare, r.otp, r.ride_status, u.name AS user_name, u.mobile AS user_mobile
+        'SELECT r.id, r.user_id, r.pickup_location, r.pickup_lat, r.pickup_lng, r.destination, r.dropoff_lat, r.dropoff_lng, r.distance_km, r.fare, r.otp, r.ride_status, u.name AS user_name, u.mobile AS user_mobile
          FROM rides r
          JOIN users u ON r.user_id = u.id
          WHERE r.driver_id = :did AND r.ride_status IN ("accepted", "driver_arrived", "started")
@@ -43,6 +43,13 @@ try {
     );
     $rideStmt->execute([':did' => $driverId]);
     $activeRide = $rideStmt->fetch() ?: null;
+    
+    if ($activeRide) {
+        $activeRide['pickup_lat'] = $activeRide['pickup_lat'] !== null ? (float)$activeRide['pickup_lat'] : null;
+        $activeRide['pickup_lng'] = $activeRide['pickup_lng'] !== null ? (float)$activeRide['pickup_lng'] : null;
+        $activeRide['dropoff_lat'] = $activeRide['dropoff_lat'] !== null ? (float)$activeRide['dropoff_lat'] : null;
+        $activeRide['dropoff_lng'] = $activeRide['dropoff_lng'] !== null ? (float)$activeRide['dropoff_lng'] : null;
+    }
     
     echo json_encode([
         'success' => true,

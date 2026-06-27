@@ -44,7 +44,11 @@ class Ride
         string $destination,
         float $distanceKm,
         float $fare,
-        string $otp
+        string $otp,
+        float $pickupLat,
+        float $pickupLng,
+        float $dropoffLat,
+        float $dropoffLng
     ): int {
         if ($userId <= 0) {
             throw new InvalidArgumentException('Invalid user ID.');
@@ -66,16 +70,20 @@ class Ride
         $otpHash = password_hash($otp, PASSWORD_BCRYPT);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO rides (user_id, pickup_location, destination, distance_km, fare, otp)
-             VALUES (:user_id, :pickup, :dest, :dist, :fare, :otp)'
+            'INSERT INTO rides (user_id, pickup_location, pickup_lat, pickup_lng, destination, dropoff_lat, dropoff_lng, distance_km, fare, otp)
+             VALUES (:user_id, :pickup, :pickup_lat, :pickup_lng, :dest, :dropoff_lat, :dropoff_lng, :dist, :fare, :otp)'
         );
         $stmt->execute([
-            ':user_id' => $userId,
-            ':pickup'  => $pickup,
-            ':dest'    => $destination,
-            ':dist'    => $distanceKm,
-            ':fare'    => $fare,
-            ':otp'     => $otpHash,
+            ':user_id'     => $userId,
+            ':pickup'      => $pickup,
+            ':pickup_lat'  => $pickupLat,
+            ':pickup_lng'  => $pickupLng,
+            ':dest'        => $destination,
+            ':dropoff_lat' => $dropoffLat,
+            ':dropoff_lng' => $dropoffLng,
+            ':dist'        => $distanceKm,
+            ':fare'        => $fare,
+            ':otp'         => $otpHash,
         ]);
 
         return (int) $this->db->lastInsertId();
@@ -106,7 +114,7 @@ class Ride
     public function getRideById(int $rideId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, user_id, driver_id, pickup_location, destination,
+            'SELECT id, user_id, driver_id, pickup_location, pickup_lat, pickup_lng, destination, dropoff_lat, dropoff_lng,
                     distance_km, fare, otp, ride_status, payment_status, created_at
              FROM rides WHERE id = :id LIMIT 1'
         );
@@ -175,7 +183,7 @@ class Ride
     public function getRideWithDriver(int $rideId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT r.id, r.user_id, r.driver_id, r.pickup_location, r.destination,
+            'SELECT r.id, r.user_id, r.driver_id, r.pickup_location, r.pickup_lat, r.pickup_lng, r.destination, r.dropoff_lat, r.dropoff_lng,
                     r.distance_km, r.fare, r.ride_status, r.payment_status, r.created_at,
                     d.name AS driver_name, d.mobile AS driver_mobile, d.vehicle_number
              FROM rides r

@@ -323,6 +323,11 @@ document.addEventListener('DOMContentLoaded', () => {
             driverDashMenu.classList.add('hidden');
             driverDashMenu.style.display = 'none';
         }
+        const adminDashMenu = document.getElementById('menu-admin-dashboard');
+        if (adminDashMenu) {
+            adminDashMenu.classList.add('hidden');
+            adminDashMenu.style.display = 'none';
+        }
 
         document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
         const dashboardBtn = document.querySelector('.menu-item[data-target="dashboard"]');
@@ -345,17 +350,29 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sidebar-user-phone').textContent = state.countryCode + ' ' + rawPhone;
         document.getElementById('sidebar-avatar').textContent = state.driver.name.charAt(0).toUpperCase();
 
-        // Adjust sidebar options for Driver (hide passenger ones, show driver)
+        // Adjust sidebar options for Driver (show console, history, wallet, profile; hide book ride)
         document.querySelectorAll('.menu-item').forEach(m => {
-            m.classList.add('hidden');
-            m.style.display = 'none';
+            m.classList.remove('hidden');
+            m.style.display = 'flex';
         });
+        const bookRideMenu = document.querySelector('.menu-item[data-target="dashboard"]');
+        if (bookRideMenu) {
+            bookRideMenu.classList.add('hidden');
+            bookRideMenu.style.display = 'none';
+        }
         const driverDashMenu = document.getElementById('menu-driver-dashboard');
         if (driverDashMenu) {
             driverDashMenu.classList.remove('hidden');
             driverDashMenu.classList.add('active');
             driverDashMenu.style.display = 'flex';
         }
+        const adminDashMenu = document.getElementById('menu-admin-dashboard');
+        if (adminDashMenu) {
+            adminDashMenu.classList.add('hidden');
+            adminDashMenu.style.display = 'none';
+        }
+
+        state.driver.phone = rawPhone;
 
         showDriverDashboard(json.active_ride);
         switchScreen('screen-app');
@@ -365,6 +382,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-logout').addEventListener('click', async () => {
         clearInterval(state.statusPollInterval);
         clearInterval(state.simulationInterval);
+        if (state.matchingPollInterval) {
+            clearInterval(state.matchingPollInterval);
+        }
         await apiPost('../user/logout.php', {}).catch(() => null);
         window.location.reload();
     });
@@ -380,20 +400,30 @@ document.addEventListener('DOMContentLoaded', () => {
             item.classList.add('active');
             if (target === 'dashboard') {
                 showPanel('panel-booking');
+            } else if (target === 'driver-dashboard') {
+                showPanel('panel-driver-dashboard');
             } else {
                 showPanel('panel-' + target);
             }
             if (target === 'history') renderHistoryList();
             if (target === 'wallet')  renderWalletPanel();
+            if (target === 'profile') loadProfilePanel();
             if (window.innerWidth <= 900) document.querySelector('.sidebar').classList.remove('open');
         });
     });
 
     document.querySelectorAll('.btn-close-subpanel').forEach(btn => {
         btn.addEventListener('click', () => {
-            showPanel('panel-booking');
-            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-            document.querySelector('.menu-item[data-target="dashboard"]').classList.add('active');
+            if (state.authRole === 'captain') {
+                showPanel('panel-driver-dashboard');
+                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+                const driverDashMenu = document.getElementById('menu-driver-dashboard');
+                if (driverDashMenu) driverDashMenu.classList.add('active');
+            } else {
+                showPanel('panel-booking');
+                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+                document.querySelector('.menu-item[data-target="dashboard"]').classList.add('active');
+            }
         });
     });
 
@@ -831,7 +861,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const json = await apiPost('../user/book_ride.php', {
             pickup_location: state.booking.pickup.name + ', ' + state.booking.pickup.address,
-            destination:     state.booking.dropoff.name + ', ' + state.booking.dropoff.address
+            pickup_lat:      state.booking.pickup.lat,
+            pickup_lng:      state.booking.pickup.lng,
+            destination:     state.booking.dropoff.name + ', ' + state.booking.dropoff.address,
+            dropoff_lat:     state.booking.dropoff.lat,
+            dropoff_lng:     state.booking.dropoff.lng
         }).catch(() => null);
 
         if (!json || !json.success) {
@@ -845,26 +879,24 @@ document.addEventListener('DOMContentLoaded', () => {
         state.booking.fare   = json.fare;
         document.getElementById('ride-otp').textContent = json.otp;
 
-        // Attempt real driver assignment from DB
-        const assignJson = await apiPost('../user/assign_driver.php', { ride_id: json.ride_id }).catch(() => null);
-        if (assignJson && assignJson.success) {
-            // Real driver found — store for tracking panel
-            state.booking.realDriver = assignJson;
-        }
-
-        setTimeout(() => {
-            if (document.getElementById('panel-matching').classList.contains('active-panel')) {
-                startRideSimulation();
-            }
-        }, 2500);
+        // Start polling for captain acceptance!
+        startWaitingForCaptain(json.ride_id);
     });
 
     document.getElementById('btn-cancel-matching').addEventListener('click', () => {
+        if (state.matchingPollInterval) {
+            clearInterval(state.matchingPollInterval);
+            state.matchingPollInterval = null;
+        }
         showPanel('panel-booking');
         renderNearbyDrivers();
     });
 
     document.getElementById('btn-cancel-ride').addEventListener('click', () => {
+        if (state.matchingPollInterval) {
+            clearInterval(state.matchingPollInterval);
+            state.matchingPollInterval = null;
+        }
         stopSimulation();
         clearInterval(state.statusPollInterval);
         state.booking.rideId = null;
@@ -873,6 +905,28 @@ document.addEventListener('DOMContentLoaded', () => {
         showPanel('panel-booking');
         renderNearbyDrivers();
     });
+
+    function startWaitingForCaptain(rideId) {
+        if (state.matchingPollInterval) {
+            clearInterval(state.matchingPollInterval);
+        }
+        state.matchingPollInterval = setInterval(async () => {
+            const json = await apiGet('../user/ride_status.php?ride_id=' + rideId).catch(() => null);
+            if (json && json.success) {
+                if (json.ride_status !== 'waiting') {
+                    clearInterval(state.matchingPollInterval);
+                    state.matchingPollInterval = null;
+
+                    state.booking.realDriver = {
+                        success: true,
+                        driver_name: json.driver_name,
+                        vehicle_number: json.vehicle_number
+                    };
+                    startRideSimulation();
+                }
+            }
+        }, 2000);
+    }
 
     function startRideSimulation() {
         const driverIcon = L.divIcon({
@@ -901,9 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ride-status-badge').className    = 'status-badge green';
         showPanel('panel-tracking');
 
-        // Advance DB ride: waiting → accepted (also assigns driver if still waiting)
-        apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'accepted' }).catch(() => null);
-
         // Phase 1: driver approaches pickup
         fetchRoutePoints(startPos, state.booking.pickup).then(toPickup => {
             let idx = 0;
@@ -927,13 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('live-distance').textContent = d.toFixed(2) + ' km';
                 } else {
                     clearInterval(state.simulationInterval);
-                    document.getElementById('ride-status-badge').textContent = 'Arrived at Pickup';
-                    document.getElementById('ride-status-badge').className   = 'status-badge warning';
-                    document.getElementById('live-eta').textContent      = 'Arrived';
-                    document.getElementById('live-distance').textContent = '0.0 km';
-                    // Advance DB ride: accepted → driver_arrived
-                    apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'driver_arrived' }).catch(() => null);
-                    setTimeout(startTripPhase, 2500);
                 }
             }, 150);
         });
@@ -944,9 +988,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function startTripPhase() {
         document.getElementById('ride-status-badge').textContent = 'Ride In Progress';
         document.getElementById('ride-status-badge').className   = 'status-badge green';
-
-        // Advance DB ride: driver_arrived → started
-        apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'started' }).catch(() => null);
 
         fetchRoutePoints(state.booking.pickup, state.booking.dropoff).then(toDropoff => {
             let idx = 0;
@@ -971,10 +1012,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('live-distance').textContent = d.toFixed(1) + ' km';
                 } else {
                     clearInterval(state.simulationInterval);
-                    // Advance DB ride: started → completed (also frees driver)
-                    apiPost('../user/simulation_advance.php', { ride_id: state.booking.rideId, to_status: 'completed' })
-                        .catch(() => null)
-                        .finally(() => showCompletedPanel());
                 }
             }, 150);
         });
@@ -996,6 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             started:        'Ride In Progress',
             completed:      'Ride Complete',
         };
+        state.lastPolledStatus = 'accepted';
         state.statusPollInterval = setInterval(async () => {
             const json = await apiGet('../user/ride_status.php?ride_id=' + rideId).catch(() => null);
             if (!json || !json.success) return;
@@ -1007,7 +1045,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('ride-status-badge').className =
                     json.ride_status === 'driver_arrived' ? 'status-badge warning' : 'status-badge green';
             }
-        }, 5000);
+
+            if (json.ride_status !== state.lastPolledStatus) {
+                state.lastPolledStatus = json.ride_status;
+
+                if (json.ride_status === 'driver_arrived') {
+                    clearInterval(state.simulationInterval);
+                    if (state.markers.activeDriver && state.booking.pickup) {
+                        state.markers.activeDriver.setLatLng([state.booking.pickup.lat, state.booking.pickup.lng]);
+                    }
+                    document.getElementById('live-eta').textContent      = 'Arrived';
+                    document.getElementById('live-distance').textContent = '0.0 km';
+                } else if (json.ride_status === 'started') {
+                    clearInterval(state.simulationInterval);
+                    startTripPhase();
+                } else if (json.ride_status === 'completed') {
+                    clearInterval(state.simulationInterval);
+                    showCompletedPanel();
+                }
+            }
+        }, 3000);
     }
 
     // =========================================================================
@@ -1137,25 +1194,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('history-items-container');
         container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:20px">Loading...</p>';
 
-        const json = await apiGet(`../user/ride_history.php?page=${page}&limit=${HISTORY_LIMIT}`).catch(() => null);
+        let url = `../user/ride_history.php?page=${page}&limit=${HISTORY_LIMIT}`;
+        if (state.authRole === 'captain') {
+            url = `../driver/ride_history.php?page=${page}&limit=${HISTORY_LIMIT}`;
+        }
+
+        const json = await apiGet(url).catch(() => null);
 
         if (!json || !json.success) {
-            // Fallback to session data if API fails (e.g. not logged in via PHP session)
-            if (!sessionRides.length) {
-                container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:20px">No rides taken yet.</p>';
+            if (state.authRole !== 'captain' && sessionRides.length) {
+                renderHistoryCards(container, sessionRides.map(r => ({
+                    id: r.id, created_at: r.date,
+                    pickup_location: r.pickup, destination: r.dropoff,
+                    fare: r.cost, ride_status: 'completed', payment_status: 'paid',
+                    driver_name: null, vehicle_number: null
+                })), 1, sessionRides.length, HISTORY_LIMIT);
                 return;
             }
-            renderHistoryCards(container, sessionRides.map(r => ({
-                id: r.id, created_at: r.date,
-                pickup_location: r.pickup, destination: r.dropoff,
-                fare: r.cost, ride_status: 'completed', payment_status: 'paid',
-                driver_name: null, vehicle_number: null
-            })), 1, sessionRides.length, HISTORY_LIMIT);
+            container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:20px">No rides taken yet.</p>';
             return;
         }
 
-        historyPage = json.page;
-        renderHistoryCards(container, json.rides, json.page, json.total, json.limit);
+        historyPage = json.page || 1;
+        renderHistoryCards(container, json.rides, json.page || 1, json.total || json.rides.length, json.limit || HISTORY_LIMIT);
     }
 
     function renderHistoryCards(container, rides, page, total, limit) {
@@ -1170,6 +1231,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusColor = item.ride_status === 'completed' ? '#065f46' : '#92400e';
             const card = document.createElement('div');
             card.className = 'history-card';
+            
+            // If captain, show passenger name instead of driver
+            const detailLabel = state.authRole === 'captain'
+                ? (item.passenger_name ? `<span style="font-size:0.8rem;color:var(--text-light)">👤 Passenger: ${item.passenger_name}</span>` : '')
+                : (item.driver_name ? `<span style="font-size:0.8rem;color:var(--text-light)">👤 Captain: ${item.driver_name}</span>` : '');
+
             card.innerHTML = `
                 <div class="history-card-header">
                     <span>${item.created_at}</span>
@@ -1186,8 +1253,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="history-card-footer">
                     <span class="vehicle-badge" style="color:${statusColor}">${item.ride_status}</span>
-                    ${item.driver_name ? `<span style="font-size:0.8rem;color:var(--text-light)">👤 ${item.driver_name}</span>` : ''}
-                    <span class="vehicle-badge">${item.payment_status}</span>
+                    ${detailLabel}
+                    <span class="vehicle-badge">${item.payment_status || 'paid'}</span>
                 </div>`;
             container.appendChild(card);
         });
@@ -1207,95 +1274,193 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // =========================================================================
-    // WALLET
-    // =========================================================================
-
     async function renderWalletPanel() {
         const container = document.getElementById('transaction-list-container');
         container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">Loading...</p>';
 
-        const json = await apiGet('../user/payment_history.php?limit=20').catch(() => null);
+        const titleEl = document.querySelector('#panel-wallet .wallet-card-title');
+        const listHeaderEl = document.querySelector('#panel-wallet .transactions-section h3');
 
-        if (!json || !json.success) {
-            // Fallback to session data
-            if (!sessionPayments.length) {
-                container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No payments yet.</p>';
+        if (state.authRole === 'captain') {
+            if (titleEl) titleEl.textContent = 'Total Earned';
+            if (listHeaderEl) listHeaderEl.textContent = 'Recent Earnings';
+
+            const json = await apiGet('../driver/wallet_earnings.php').catch(() => null);
+            if (!json || !json.success) {
+                container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No earnings yet.</p>';
                 document.getElementById('wallet-total-spent').textContent = '₹0';
                 return;
             }
-            const total = sessionPayments.reduce((sum, p) => sum + p.amount, 0);
-            document.getElementById('wallet-total-spent').textContent = '₹' + total;
+
+            document.getElementById('wallet-total-spent').textContent = '₹' + Math.round(json.total_earned);
             container.innerHTML = '';
-            sessionPayments.forEach(p => {
+
+            if (!json.earnings || !json.earnings.length) {
+                container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No earnings yet.</p>';
+                return;
+            }
+
+            json.earnings.forEach(e => {
                 const el = document.createElement('div');
                 el.className = 'transaction-item';
                 el.innerHTML = `
                     <div class="txn-desc">
-                        <span class="txn-title">${p.title}</span>
-                        <span class="txn-time">${p.date}</span>
+                        <span class="txn-title">Earning from ${e.passenger_name}</span>
+                        <span class="txn-time">${new Date(e.created_at).toLocaleDateString()}</span>
                     </div>
-                    <span class="txn-amt negative">- ₹${p.amount}</span>`;
+                    <span class="txn-amt positive" style="color:var(--success, #059669); font-weight:700;">+ ₹${Math.round(e.fare)}</span>`;
                 container.appendChild(el);
             });
-            return;
+        } else {
+            if (titleEl) titleEl.textContent = 'Total Spent';
+            if (listHeaderEl) listHeaderEl.textContent = 'Recent Payments';
+
+            const json = await apiGet('../user/payment_history.php?limit=20').catch(() => null);
+
+            if (!json || !json.success) {
+                if (!sessionPayments.length) {
+                    container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No payments yet.</p>';
+                    document.getElementById('wallet-total-spent').textContent = '₹0';
+                    return;
+                }
+                const total = sessionPayments.reduce((sum, p) => sum + p.amount, 0);
+                document.getElementById('wallet-total-spent').textContent = '₹' + total;
+                container.innerHTML = '';
+                sessionPayments.forEach(p => {
+                    const el = document.createElement('div');
+                    el.className = 'transaction-item';
+                    el.innerHTML = `
+                        <div class="txn-desc">
+                            <span class="txn-title">${p.title}</span>
+                            <span class="txn-time">${p.date}</span>
+                        </div>
+                        <span class="txn-amt negative">- ₹${p.amount}</span>`;
+                    container.appendChild(el);
+                });
+                return;
+            }
+
+            document.getElementById('wallet-total-spent').textContent = '₹' + parseFloat(json.total_spent).toFixed(0);
+            container.innerHTML = '';
+
+            if (!json.payments.length) {
+                container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No payments yet.</p>';
+                return;
+            }
+
+            json.payments.forEach(p => {
+                const el = document.createElement('div');
+                el.className = 'transaction-item';
+                el.innerHTML = `
+                    <div class="txn-desc">
+                        <span class="txn-title">Ride to ${p.destination.split(',')[0]}</span>
+                        <span class="txn-time">${p.paid_at} · ${p.payment_method}</span>
+                    </div>
+                    <span class="txn-amt negative">- ₹${parseFloat(p.amount).toFixed(0)}</span>`;
+                container.appendChild(el);
+            });
         }
-
-        document.getElementById('wallet-total-spent').textContent = '₹' + parseFloat(json.total_spent).toFixed(0);
-        container.innerHTML = '';
-
-        if (!json.payments.length) {
-            container.innerHTML = '<p style="text-align:center;color:var(--text-light);margin-top:10px">No payments yet.</p>';
-            return;
-        }
-
-        json.payments.forEach(p => {
-            const el = document.createElement('div');
-            el.className = 'transaction-item';
-            el.innerHTML = `
-                <div class="txn-desc">
-                    <span class="txn-title">Ride to ${p.destination.split(',')[0]}</span>
-                    <span class="txn-time">${p.paid_at} · ${p.payment_method}</span>
-                </div>
-                <span class="txn-amt negative">- ₹${parseFloat(p.amount).toFixed(0)}</span>`;
-            container.appendChild(el);
-        });
     }
 
-    // =========================================================================
-    // PROFILE
-    // =========================================================================
-
     document.getElementById('btn-save-profile').addEventListener('click', async () => {
-        const name  = document.getElementById('profile-name').value.trim()  || state.user.name;
-        const email = document.getElementById('profile-email').value.trim();
-        state.user.homeAddress = document.getElementById('profile-home-addr').value.trim();
-        state.user.workAddress = document.getElementById('profile-work-addr').value.trim();
-
+        const name = document.getElementById('profile-name').value.trim();
         const btn = document.getElementById('btn-save-profile');
+        const msg = document.getElementById('profile-save-msg');
+
+        if (!name) {
+            msg.textContent = 'Name cannot be empty.';
+            msg.style.color = 'var(--danger, #dc2626)';
+            msg.classList.remove('hidden');
+            return;
+        }
+
         btn.disabled = true; btn.textContent = 'Saving...';
 
-        const json = await apiPost('../user/update_profile.php', { name, email }).catch(() => null);
+        if (state.authRole === 'captain') {
+            const vehicleNumber = document.getElementById('profile-vehicle-num').value.trim();
+            const vehicleType = document.getElementById('profile-vehicle-type').value;
 
-        btn.disabled = false; btn.textContent = 'Save Changes';
+            if (!vehicleNumber) {
+                msg.textContent = 'Vehicle Number cannot be empty.';
+                msg.style.color = 'var(--danger, #dc2626)';
+                msg.classList.remove('hidden');
+                btn.disabled = false; btn.textContent = 'Save Changes';
+                return;
+            }
 
-        const msg = document.getElementById('profile-save-msg');
-        if (!json || !json.success) {
-            const errText = json && json.errors ? json.errors.join(' ') : 'Save failed.';
-            msg.textContent = errText;
-            msg.style.color = 'var(--danger, #dc2626)';
+            const json = await apiPost('../driver/update_profile.php', {
+                name, vehicle_number: vehicleNumber, vehicle_type: vehicleType
+            }).catch(() => null);
+
+            btn.disabled = false; btn.textContent = 'Save Changes';
+
+            if (!json || !json.success) {
+                msg.textContent = json ? json.message : 'Save failed.';
+                msg.style.color = 'var(--danger, #dc2626)';
+            } else {
+                state.driver.name = json.name;
+                state.driver.vehicleNumber = json.vehicle_number;
+                state.driver.vehicleType = json.vehicle_type;
+
+                document.getElementById('driver-name-disp').textContent = json.name + " (" + json.vehicle_number + ")";
+                document.getElementById('sidebar-user-name').textContent = json.name;
+                document.getElementById('sidebar-avatar').textContent = json.name.charAt(0).toUpperCase();
+
+                msg.textContent = 'Profile saved!';
+                msg.style.color = 'var(--success, #059669)';
+            }
         } else {
-            state.user.name  = json.name;
-            state.user.email = json.email || '';
-            document.getElementById('profile-name').value = json.name;
-            document.getElementById('sidebar-user-name').textContent = json.name;
-            document.getElementById('sidebar-avatar').textContent    = json.name.charAt(0).toUpperCase();
-            msg.textContent = 'Profile saved!';
-            msg.style.color = 'var(--success, #059669)';
+            const email = document.getElementById('profile-email').value.trim();
+            state.user.homeAddress = document.getElementById('profile-home-addr').value.trim();
+            state.user.workAddress = document.getElementById('profile-work-addr').value.trim();
+
+            const json = await apiPost('../user/update_profile.php', { name, email }).catch(() => null);
+
+            btn.disabled = false; btn.textContent = 'Save Changes';
+
+            if (!json || !json.success) {
+                const errText = json && json.errors ? json.errors.join(' ') : 'Save failed.';
+                msg.textContent = errText;
+                msg.style.color = 'var(--danger, #dc2626)';
+            } else {
+                state.user.name  = json.name;
+                state.user.email = json.email || '';
+                document.getElementById('profile-name').value = json.name;
+                document.getElementById('sidebar-user-name').textContent = json.name;
+                document.getElementById('sidebar-avatar').textContent    = json.name.charAt(0).toUpperCase();
+                msg.textContent = 'Profile saved!';
+                msg.style.color = 'var(--success, #059669)';
+            }
         }
         msg.classList.remove('hidden');
         setTimeout(() => msg.classList.add('hidden'), 2500);
     });
+
+    function loadProfilePanel() {
+        const msg = document.getElementById('profile-save-msg');
+        msg.classList.add('hidden');
+        
+        if (state.authRole === 'captain') {
+            document.getElementById('profile-passenger-fields').classList.add('hidden');
+            document.getElementById('profile-saved-places').classList.add('hidden');
+            document.getElementById('profile-driver-fields').classList.remove('hidden');
+            
+            document.getElementById('profile-name').value = state.driver.name;
+            document.getElementById('profile-phone').value = state.driver.phone || '';
+            document.getElementById('profile-vehicle-num').value = state.driver.vehicleNumber;
+            document.getElementById('profile-vehicle-type').value = state.driver.vehicleType;
+        } else {
+            document.getElementById('profile-passenger-fields').classList.remove('hidden');
+            document.getElementById('profile-saved-places').classList.remove('hidden');
+            document.getElementById('profile-driver-fields').classList.add('hidden');
+            
+            document.getElementById('profile-name').value = state.user.name;
+            document.getElementById('profile-phone').value = state.user.phone || '';
+            document.getElementById('profile-email').value = state.user.email || '';
+            document.getElementById('profile-home-addr').value = state.user.homeAddress || '';
+            document.getElementById('profile-work-addr').value = state.user.workAddress || '';
+        }
+    }
 
     // =========================================================================
     // CAPTAIN (DRIVER) WORKFLOWS
@@ -1443,6 +1608,88 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             advanceBtn.textContent = 'Complete Ride';
             otpSection.classList.add('hidden');
+        }
+
+        // Trigger simulation on driver map!
+        startDriverSimulation(ride);
+    }
+
+    function startDriverSimulation(ride) {
+        // Clear any existing active simulation
+        clearInterval(state.simulationInterval);
+        if (state.markers.activeDriver) { state.map.removeLayer(state.markers.activeDriver); state.markers.activeDriver = null; }
+        if (state.markers.pickup)       { state.map.removeLayer(state.markers.pickup);       state.markers.pickup = null; }
+        if (state.markers.dropoff)      { state.map.removeLayer(state.markers.dropoff);      state.markers.dropoff = null; }
+        if (state.routePolyline)        { state.map.removeLayer(state.routePolyline);        state.routePolyline = null; }
+
+        if (!ride || !ride.pickup_lat || !ride.pickup_lng) return;
+
+        // Draw pickup marker
+        state.markers.pickup = L.marker([ride.pickup_lat, ride.pickup_lng], { icon: pinIcon('pickup-pin') })
+            .addTo(state.map).bindPopup('<b>Pickup</b><br>' + ride.pickup_location);
+
+        // Draw dropoff marker
+        if (ride.dropoff_lat && ride.dropoff_lng) {
+            state.markers.dropoff = L.marker([ride.dropoff_lat, ride.dropoff_lng], { icon: pinIcon('') })
+                .addTo(state.map).bindPopup('<b>Destination</b><br>' + ride.destination);
+        }
+
+        // Draw polyline
+        fetchRoutePoints({ lat: ride.pickup_lat, lng: ride.pickup_lng }, { lat: ride.dropoff_lat, lng: ride.dropoff_lng }).then(ptsData => {
+            const pts = ptsData.map(p => [p.lat, p.lng]);
+            state.routePolyline = L.polyline(pts, {
+                color: '#10B981', weight: 5, opacity: 0.8, dashArray: '1, 10', lineCap: 'round'
+            }).addTo(state.map);
+        });
+
+        const driverIcon = L.divIcon({
+            html: '<div class="driver-marker-pulse"><i data-lucide="bike"></i></div>',
+            className: 'map-driver-marker', iconSize: [36, 36], iconAnchor: [18, 18]
+        });
+
+        if (ride.ride_status === 'accepted') {
+            // Animate from a random starting location to the pickup
+            const startPos = {
+                lat: ride.pickup_lat + (Math.random() - 0.5) * 0.01,
+                lng: ride.pickup_lng + (Math.random() - 0.5) * 0.01
+            };
+            state.markers.activeDriver = L.marker([startPos.lat, startPos.lng], { icon: driverIcon }).addTo(state.map);
+            refreshIcons();
+
+            fetchRoutePoints(startPos, { lat: ride.pickup_lat, lng: ride.pickup_lng }).then(toPickup => {
+                let idx = 0;
+                state.simulationInterval = setInterval(() => {
+                    if (idx < toPickup.length) {
+                        const p = toPickup[idx++];
+                        state.markers.activeDriver.setLatLng([p.lat, p.lng]);
+                        state.map.setView([p.lat, p.lng]);
+                    } else {
+                        clearInterval(state.simulationInterval);
+                    }
+                }, 150);
+            });
+        } else if (ride.ride_status === 'driver_arrived') {
+            // Parked at pickup
+            state.markers.activeDriver = L.marker([ride.pickup_lat, ride.pickup_lng], { icon: driverIcon }).addTo(state.map);
+            state.map.setView([ride.pickup_lat, ride.pickup_lng], 14);
+            refreshIcons();
+        } else if (ride.ride_status === 'started') {
+            // Animate from pickup to dropoff
+            state.markers.activeDriver = L.marker([ride.pickup_lat, ride.pickup_lng], { icon: driverIcon }).addTo(state.map);
+            refreshIcons();
+
+            fetchRoutePoints({ lat: ride.pickup_lat, lng: ride.pickup_lng }, { lat: ride.dropoff_lat, lng: ride.dropoff_lng }).then(toDropoff => {
+                let idx = 0;
+                state.simulationInterval = setInterval(() => {
+                    if (idx < toDropoff.length) {
+                        const p = toDropoff[idx++];
+                        state.markers.activeDriver.setLatLng([p.lat, p.lng]);
+                        state.map.setView([p.lat, p.lng]);
+                    } else {
+                        clearInterval(state.simulationInterval);
+                    }
+                }, 150);
+            });
         }
     }
 
