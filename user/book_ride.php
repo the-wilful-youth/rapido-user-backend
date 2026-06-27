@@ -87,6 +87,7 @@ $otp      = (string)mt_rand(1000, 9999);
 try {
     $ride   = new Ride(Database::getInstance()->getConnection());
     $rideId = $ride->createRide($userId, $pickup, $dest, $distance, $fare, $otp, $pickupLat, $pickupLng, $dropoffLat, $dropoffLng);
+    $_SESSION['active_ride_otp'] = $otp;
 } catch (InvalidArgumentException $e) {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);

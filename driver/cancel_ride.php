@@ -2,13 +2,10 @@
 declare(strict_types=1);
 
 /**
- * driver/advance_ride.php
- * POST — advance a ride to the next lifecycle state.
+ * driver/cancel_ride.php
+ * POST endpoint — cancels a ride after arriving at pickup and frees the assigned driver.
  *
- * Driver-only endpoint. Allowed transitions:
- *   accepted       → driver_arrived
- *   driver_arrived → started
- *
+ * Driver-only endpoint.
  * Required POST field: ride_id
  */
 
@@ -26,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 validate_csrf();
 
+// Only driver sessions may cancel
 if (empty($_SESSION['driver_id']) || !is_int($_SESSION['driver_id'])) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Forbidden. Driver access only.']);
@@ -43,12 +41,6 @@ if ($rideId === false || $rideId === null) {
     exit;
 }
 
-// Allowed state machine transitions for this endpoint
-const TRANSITIONS = [
-    'accepted'       => 'driver_arrived',
-    'driver_arrived' => 'started',
-];
-
 try {
     $pdo  = Database::getInstance()->getConnection();
     $ride = new Ride($pdo);
@@ -65,44 +57,39 @@ if ($row === null) {
     exit;
 }
 
+// Ensure this driver is the one assigned to the ride
 if ((int) $row['driver_id'] !== $sessionDriverId) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Access denied.']);
     exit;
 }
 
-$currentStatus = $row['ride_status'];
-if (!array_key_exists($currentStatus, TRANSITIONS)) {
+if ($row['ride_status'] !== 'driver_arrived') {
     http_response_code(422);
     echo json_encode([
         'success' => false,
-        'message' => "Cannot advance ride from status '{$currentStatus}'.",
+        'message' => "Cannot cancel a ride with status '{$row['ride_status']}'. Status must be 'driver_arrived'.",
     ]);
     exit;
 }
 
-$nextStatus = TRANSITIONS[$currentStatus];
-
-if ($currentStatus === 'driver_arrived') {
-    $otp = $_POST['otp'] ?? '';
-    if ($otp === '') {
-        http_response_code(422);
-        echo json_encode(['success' => false, 'message' => 'OTP is required to start the trip.']);
-        exit;
-    }
-    if (!$ride->verifyOtp($rideId, $otp)) {
-        http_response_code(422);
-        echo json_encode(['success' => false, 'message' => 'Invalid OTP. Please enter the correct code.']);
-        exit;
-    }
-}
-
 try {
-    $ride->updateStatus($rideId, $nextStatus);
+    $pdo->beginTransaction();
+
+    $ride->updateStatus($rideId, 'cancelled');
+
+    // Free the driver so they can accept new rides
+    $pdo->prepare('UPDATE drivers SET is_available = TRUE WHERE id = :did')
+        ->execute([':did' => $sessionDriverId]);
+
+    $pdo->commit();
 } catch (Throwable) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Could not advance ride status.']);
+    echo json_encode(['success' => false, 'message' => 'Could not cancel ride.']);
     exit;
 }
 
-echo json_encode(['success' => true, 'ride_status' => $nextStatus]);
+echo json_encode(['success' => true, 'message' => 'Ride successfully cancelled.']);

@@ -96,4 +96,5 @@ echo json_encode([
     'pickup_lng'     => $row['pickup_lng'] !== null ? (float)$row['pickup_lng'] : null,
     'dropoff_lat'    => $row['dropoff_lat'] !== null ? (float)$row['dropoff_lat'] : null,
     'dropoff_lng'    => $row['dropoff_lng'] !== null ? (float)$row['dropoff_lng'] : null,
+    'otp'            => $_SESSION['active_ride_otp'] ?? ''
 ]);

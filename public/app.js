@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function onLoginSuccess(json, rawPhone) {
+        state.authRole   = 'passenger';
         state.user.id    = json.user_id;
         state.user.name  = json.name;
         state.user.phone = rawPhone;
@@ -332,13 +333,39 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
         const dashboardBtn = document.querySelector('.menu-item[data-target="dashboard"]');
         if (dashboardBtn) dashboardBtn.classList.add('active');
-        showPanel('panel-booking');
+
+        if (json.active_ride) {
+            state.booking.rideId = json.active_ride.id;
+            state.booking.fare   = json.active_ride.fare;
+            state.booking.otp    = json.active_ride.otp;
+            state.booking.pickup = { 
+                lat: json.active_ride.pickup_lat, 
+                lng: json.active_ride.pickup_lng, 
+                name: json.active_ride.pickup_location.split(',')[0],
+                address: json.active_ride.pickup_location
+            };
+            state.booking.dropoff = { 
+                lat: json.active_ride.dropoff_lat, 
+                lng: json.active_ride.dropoff_lng, 
+                name: json.active_ride.destination.split(',')[0],
+                address: json.active_ride.destination
+            };
+            state.booking.realDriver = {
+                success: true,
+                driver_name: json.active_ride.driver_name,
+                vehicle_number: json.active_ride.vehicle_number
+            };
+            startRideSimulation();
+        } else {
+            showPanel('panel-booking');
+        }
 
         switchScreen('screen-app');
         initLeafletMap();
     }
 
     function onDriverLoginSuccess(json, rawPhone) {
+        state.authRole = 'captain';
         state.driver.id = json.driver_id;
         state.driver.name = json.name;
         state.driver.vehicleNumber = json.vehicle_number;
@@ -396,12 +423,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.menu-item').forEach(item => {
         item.addEventListener('click', () => {
             const target = item.getAttribute('data-target');
+
+            // Active trip lock for passenger
+            if (state.authRole === 'passenger' && state.booking.rideId && target !== 'dashboard') {
+                alert('You have an active ride in progress.');
+                return;
+            }
+
+            // Active trip lock for captain
+            if (state.authRole === 'captain' && state.driver.activeRide && target !== 'driver-dashboard') {
+                alert('You have an active ride. Please complete it first.');
+                return;
+            }
+
             document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
             item.classList.add('active');
             if (target === 'dashboard') {
-                showPanel('panel-booking');
+                if (state.booking.rideId) {
+                    showPanel('panel-tracking');
+                } else {
+                    showPanel('panel-booking');
+                }
             } else if (target === 'driver-dashboard') {
-                showPanel('panel-driver-dashboard');
+                showDriverDashboard(state.driver.activeRide);
             } else {
                 showPanel('panel-' + target);
             }
@@ -500,7 +544,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Geolocation permission denied or failed. Defaulting to India capital.", error);
                     updatePickupMarker();
                     renderNearbyDrivers();
-                }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         } else {
             updatePickupMarker();
@@ -951,6 +996,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('vehicle-plate-num').textContent  = displayPlate;
         document.getElementById('vehicle-model-desc').textContent = '';
         document.getElementById('live-fare').textContent          = '₹' + Math.round(state.booking.fare);
+        if (state.booking.otp) {
+            document.getElementById('ride-otp').textContent       = state.booking.otp;
+        }
         document.getElementById('ride-status-badge').textContent  = 'Captain Arriving';
         document.getElementById('ride-status-badge').className    = 'status-badge green';
         showPanel('panel-tracking');
@@ -1039,6 +1087,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!json || !json.success) return;
             if (json.driver_name)    document.getElementById('captain-name').textContent      = json.driver_name;
             if (json.vehicle_number) document.getElementById('vehicle-plate-num').textContent = json.vehicle_number;
+            if (json.otp) {
+                state.booking.otp = json.otp;
+                document.getElementById('ride-otp').textContent = json.otp;
+            }
             const label = STATUS_LABELS[json.ride_status];
             if (label) {
                 document.getElementById('ride-status-badge').textContent = label;
@@ -1062,6 +1114,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (json.ride_status === 'completed') {
                     clearInterval(state.simulationInterval);
                     showCompletedPanel();
+                } else if (json.ride_status === 'cancelled') {
+                    clearInterval(state.simulationInterval);
+                    clearInterval(state.statusPollInterval);
+                    stopSimulation();
+                    state.booking.rideId = null;
+                    alert('Your ride was cancelled by the Captain.');
+                    showPanel('panel-booking');
+                    renderNearbyDrivers();
                 }
             }
         }, 3000);
@@ -1597,17 +1657,22 @@ document.addEventListener('DOMContentLoaded', () => {
         badge.textContent = ride.ride_status === 'accepted' ? 'Approaching Pickup' : (ride.ride_status === 'driver_arrived' ? 'Arrived at Pickup' : 'Trip Started');
         badge.className = ride.ride_status === 'driver_arrived' ? 'status-badge warning' : 'status-badge green';
 
+        const cancelBtn = document.getElementById('btn-driver-cancel');
+
         if (ride.ride_status === 'accepted') {
             advanceBtn.textContent = 'Arrived at Pickup';
             otpSection.classList.add('hidden');
+            if (cancelBtn) cancelBtn.style.display = 'none';
         } else if (ride.ride_status === 'driver_arrived') {
             advanceBtn.textContent = 'Start Trip';
             otpSection.classList.remove('hidden');
             document.getElementById('driver-otp-input').value = '';
             document.getElementById('driver-otp-err').classList.add('hidden');
+            if (cancelBtn) cancelBtn.style.display = 'block';
         } else {
             advanceBtn.textContent = 'Complete Ride';
             otpSection.classList.add('hidden');
+            if (cancelBtn) cancelBtn.style.display = 'none';
         }
 
         // Trigger simulation on driver map!
@@ -1713,25 +1778,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(res ? res.message : 'Failed to update status.');
                 }
             } else if (ride.ride_status === 'driver_arrived') {
-                // Verify OTP first
                 const otpInput = document.getElementById('driver-otp-input').value.trim();
                 const errDiv = document.getElementById('driver-otp-err');
-                if (otpInput !== ride.otp) {
-                    errDiv.textContent = 'Invalid OTP. Please enter the correct code.';
+                if (!otpInput) {
+                    errDiv.textContent = 'Please enter the OTP.';
                     errDiv.classList.remove('hidden');
                     btnDriverAdvance.disabled = false;
                     btnDriverAdvance.textContent = 'Start Trip';
                     return;
                 }
                 
-                // OTP verified! Call advance
-                const res = await apiPost('../driver/advance_ride.php', { ride_id: ride.id }).catch(() => null);
+                const res = await apiPost('../driver/advance_ride.php', { ride_id: ride.id, otp: otpInput }).catch(() => null);
                 btnDriverAdvance.disabled = false;
+                btnDriverAdvance.textContent = 'Start Trip';
+                
                 if (res && res.success) {
+                    errDiv.classList.add('hidden');
                     const statusRes = await apiGet('../driver/status.php').catch(() => null);
                     if (statusRes && statusRes.active_ride) loadActiveDriverRide(statusRes.active_ride);
                 } else {
-                    alert(res ? res.message : 'Failed to update status.');
+                    errDiv.textContent = res ? res.message : 'Invalid OTP. Please enter the correct code.';
+                    errDiv.classList.remove('hidden');
                 }
             } else if (ride.ride_status === 'started') {
                 const res = await apiPost('../driver/complete_ride.php', { ride_id: ride.id }).catch(() => null);
@@ -1752,6 +1819,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnDriverVerifyOtp) {
         btnDriverVerifyOtp.addEventListener('click', () => {
             if (btnDriverAdvance) btnDriverAdvance.click();
+        });
+    }
+
+    // Cancel Ride Button Action
+    const btnDriverCancel = document.getElementById('btn-driver-cancel');
+    if (btnDriverCancel) {
+        btnDriverCancel.addEventListener('click', async () => {
+            const ride = state.driver.activeRide;
+            if (!ride) return;
+
+            if (!confirm('Are you sure you want to cancel this ride?')) return;
+
+            btnDriverCancel.disabled = true;
+            btnDriverCancel.textContent = 'Cancelling...';
+
+            const res = await apiPost('../driver/cancel_ride.php', { ride_id: ride.id }).catch(() => null);
+            btnDriverCancel.disabled = false;
+            btnDriverCancel.textContent = 'Cancel';
+
+            if (res && res.success) {
+                state.driver.activeRide = null;
+                state.driver.isAvailable = true;
+                showDriverDashboard();
+            } else {
+                alert(res ? res.message : 'Failed to cancel ride.');
+            }
         });
     }
 
