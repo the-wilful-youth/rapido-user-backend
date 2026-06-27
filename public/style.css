@@ -679,6 +679,90 @@ input, textarea {
     letter-spacing: 0.5px;
 }
 
+.btn-duty {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 30px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: var(--transition-fast);
+}
+.btn-duty.offline {
+    background-color: var(--bg-main);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+.btn-duty.online {
+    background-color: var(--success);
+    color: #FFFFFF;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+.requests-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.request-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-fast);
+}
+.request-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+}
+
+/* Driver/Rider Console Visual Theme */
+.driver-theme {
+    background-color: var(--secondary) !important;
+    color: #FFFFFF !important;
+}
+.driver-theme h2, .driver-theme h3, .driver-theme h4 {
+    color: #FFFFFF !important;
+}
+.driver-theme .panel-subtitle {
+    color: var(--text-light) !important;
+}
+.driver-theme .request-card {
+    background-color: #2D3139 !important;
+    border-color: #374151 !important;
+    color: #FFFFFF !important;
+}
+.driver-theme .request-card span, .driver-theme .request-card p {
+    color: #FFFFFF !important;
+}
+.driver-theme .request-card p b {
+    color: var(--primary) !important;
+}
+.driver-theme .request-card:hover {
+    border-color: var(--primary) !important;
+    box-shadow: 0 4px 12px rgba(251, 197, 10, 0.2) !important;
+}
+.driver-theme .captain-card {
+    background-color: #2D3139 !important;
+    color: #FFFFFF !important;
+}
+.driver-theme .captain-avatar {
+    background-color: var(--secondary) !important;
+}
+.driver-theme .btn-duty.offline {
+    background-color: #374151 !important;
+    color: var(--text-light) !important;
+    border-color: #4B5563 !important;
+}
+.driver-theme #driver-offline-view {
+    color: var(--text-light) !important;
+}
+
 /* Shortcuts Button Group */
 .saved-places-shortcut {
     display: flex;
@@ -1882,3 +1966,8 @@ textarea#rating-comment {
 .status-badge.green   { background: #d1fae5; color: #065f46; }
 .status-badge.warning { background: #fef3c7; color: #92400e; }
 .status-badge.red     { background: #fee2e2; color: #991b1b; }
+
+/* Utility hidden class */
+.hidden {
+    display: none !important;
+}

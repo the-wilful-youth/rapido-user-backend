@@ -11,6 +11,14 @@ rapido-user-backend/
 │   ├── db.php              # PDO singleton. Call Database::getInstance()->getConnection().
 │   ├── env.sample.php      # Committed credentials template.
 │   └── env.php             # Local credentials — git-ignored, never committed.
+├── driver/                 # Driver/Captain API endpoints.
+│   ├── login.php           # POST — authenticate driver and start session.
+│   ├── status.php          # GET  — fetch active driver details, duty status, active ride.
+│   ├── toggle_availability.php # POST — toggle online/offline availability.
+│   ├── available_rides.php     # GET  — poll waiting ride requests.
+│   ├── accept_ride.php     # POST — accept a waiting ride request (SELECT FOR UPDATE).
+│   ├── advance_ride.php    # POST — update active ride status (arrived, started).
+│   └── complete_ride.php   # POST — complete active ride and free driver.
 ├── models/
 │   └── Ride.php            # All ride-related DB operations. No raw SQL outside this file
 │                           # for ride data.
@@ -25,7 +33,7 @@ rapido-user-backend/
 ├── tests/
 │   ├── test_connection.php # Verifies DB connection is healthy.
 │   └── test_bad_connection.php  # Verifies error logging on bad credentials.
-├── user/                   # One file = one API endpoint.
+├── user/                   # Passenger API endpoints.
 │   ├── csrf.php            # GET — returns session CSRF token.
 │   ├── register.php        # POST — create user account.
 │   ├── login.php           # POST — authenticate, start session, return csrf_token.
@@ -33,8 +41,6 @@ rapido-user-backend/
 │   ├── book_ride.php       # POST — create ride record, return ride_id + OTP.
 │   ├── assign_driver.php   # POST — assign available driver (SELECT FOR UPDATE).
 │   ├── ride_status.php     # GET  — poll ride + driver details.
-│   ├── advance_ride.php    # POST — driver only: accepted→driver_arrived→started.
-│   ├── complete_ride.php   # POST — driver only: started→completed, frees driver.
 │   ├── simulation_advance.php  # POST — user: full lifecycle advancer for demo mode.
 │   ├── pay_ride.php        # POST — record payment, mark ride paid (transaction).
 │   ├── submit_feedback.php # POST — rating + comments for a completed ride.
@@ -52,10 +58,12 @@ rapido-user-backend/
 
 ```
 Browser
-  └─ GET  public/index.html          served by Apache/Nginx
-  └─ GET  user/csrf.php              fetch CSRF token on page load
-  └─ POST user/login.php             login; response includes refreshed csrf_token
-  └─ POST user/*.php                 every POST includes csrf_token in body
+  ├─ GET  public/index.html          served by Apache/Nginx
+  ├─ GET  user/csrf.php              fetch CSRF token on page load
+  ├─ POST user/login.php             login; response includes refreshed csrf_token
+  ├─ POST driver/login.php           driver login; response includes refreshed csrf_token
+  ├─ POST user/*.php                 every passenger POST includes csrf_token
+  └─ POST driver/*.php               every driver POST includes csrf_token
          │
          ▼
   config/bootstrap.php               session_set_cookie_params + session_start + CSRF init
@@ -72,7 +80,7 @@ Browser
 ## Session & Auth Model
 
 - **User session**: `$_SESSION['user_id']` (int) set on login.
-- **Driver session**: `$_SESSION['driver_id']` (int) — set by the driver login flow (Phase 9, not yet built). Required by `advance_ride.php` and `complete_ride.php`.
+- **Driver session**: `$_SESSION['driver_id']` (int) — set by driver login. Required by driver endpoints.
 - Session cookie flags: `HttpOnly=true`, `Secure=true` (HTTPS only), `SameSite=Strict`, `lifetime=0` (expires on browser close).
 - `session_regenerate_id(true)` called on every login to prevent session fixation.
 
@@ -99,7 +107,7 @@ waiting → accepted → driver_arrived → started → completed
 | Transition | Endpoint | Who |
 |---|---|---|
 | (new) → waiting | `book_ride.php` | User |
-| waiting → accepted | `assign_driver.php` | User |
+| waiting → accepted | `accept_ride.php` | Driver |
 | accepted → driver_arrived | `advance_ride.php` | Driver |
 | driver_arrived → started | `advance_ride.php` | Driver |
 | started → completed | `complete_ride.php` | Driver |

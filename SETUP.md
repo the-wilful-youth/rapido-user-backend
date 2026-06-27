@@ -45,10 +45,11 @@ C:\laragon\www\rapido-user-backend
    Or open `sql/schema.sql` in phpMyAdmin and click **Import**.
 
 4. Seed at least one driver row so ride assignment works:
-   ```sql
-   INSERT INTO drivers (name, mobile, vehicle_number, is_available)
-   VALUES ('Test Driver', '+919999999999', 'JH 05 AB 0001', TRUE);
-   ```
+    ```sql
+    -- Seeds a driver with mobile number '+919999999999' and password 'password123'
+    INSERT INTO drivers (name, mobile, vehicle_number, vehicle_type, password_hash, is_available)
+    VALUES ('Test Driver', '+919999999999', 'JH 05 AB 0001', 'bike', '$2y$10$D2BqfV9M/9iK0r19YV7O9.v2c5uLh3wDkG6vX8Wd4x8y7m2Z2n4xO', TRUE);
+    ```
 
 ---
 
@@ -91,7 +92,7 @@ Start Apache, then open:
 http://localhost/rapido-user-backend/public/index.html
 ```
 
-The SPA communicates with the backend via relative paths (`../user/*.php`), so it must be served through Apache/Nginx — **do not open `index.html` directly as a `file://` URL**.
+The SPA communicates with the backend via relative paths (`../user/*.php` and `../driver/*.php`), so it must be served through Apache/Nginx — **do not open `index.html` directly as a `file://` URL**.
 
 ---
 
@@ -124,17 +125,22 @@ If you are calling the API manually (e.g., with Postman), first `GET user/csrf.p
 
 ---
 
-## 8. Running the Simulation (Demo Mode)
+## 8. Role-Based Flows (Passenger vs Captain)
 
-The frontend includes a ride simulation that drives the full lifecycle without requiring a real driver app:
+The platform provides dedicated, separated dashboard experiences based on the selected role during authentication:
 
-1. Register or log in.
-2. Select a pickup and destination from the autocomplete.
-3. Choose a vehicle type and click **Confirm Booking**.
-4. The frontend calls `book_ride.php`, then `assign_driver.php`, then steps through `simulation_advance.php` automatically — advancing the DB ride status in sync with the map animation.
-5. After the ride completes, pay and rate from the completion screen.
+### Passenger Flow
+1. Navigate to the signup/login screen, select **Passenger** tab.
+2. Register or sign in. Set pickup and destination addresses.
+3. Select vehicle type and click **Confirm Booking**. The app pings searching for nearby captains.
+4. Once accepted, track the captain's status (Arrived &rarr; Started &rarr; Completed) on the map and view the OTP.
 
-> **Note:** The simulation requires at least one driver record in the `drivers` table with `is_available = TRUE` (see step 2.4 above).
+### Captain Flow
+1. Navigate to the Sign In screen, select the **Captain (Rider)** tab.
+2. Log in using Captain credentials (e.g. `9999999999` and `password123`).
+3. Land directly in the slate-dark Captain Console. Passenger actions are completely hidden.
+4. Toggle availability to **Online** to fetch nearby pending passenger requests.
+5. Accept a request, mark arrival, verify the passenger's OTP, start the ride, and complete it.
 
 ---
 
@@ -153,13 +159,13 @@ location /rapido-user-backend/logs/ {
 
 ## File Summary
 
-| File | Purpose |
+| File / Folder | Purpose |
 |---|---|
 | `config/bootstrap.php` | Starts session with secure cookie flags, initialises CSRF token |
 | `config/db.php` | PDO singleton — one connection per request |
 | `config/env.php` | Local DB credentials (git-ignored) |
 | `config/env.sample.php` | Credentials template — commit this, not `env.php` |
+| `driver/` | Dedicated Captain API endpoints (login, status, toggle duty, accept & advance rides) |
+| `user/` | Dedicated Passenger and shared endpoints (register, login, CSRF, booking, history) |
 | `sql/schema.sql` | Full DB schema — re-run to reset the database |
-| `user/csrf.php` | Returns current session CSRF token |
-| `user/simulation_advance.php` | Demo-only lifecycle advancer for the frontend simulation |
 | `logs/db_errors.log` | PDO error log — never exposed over HTTP |

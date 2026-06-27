@@ -11,12 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
 
     const state = {
+        authRole: 'passenger', // 'passenger' | 'captain'
         user: { id: null, name: '', phone: '', email: '', homeAddress: '', workAddress: '' },
         booking: {
             pickup: null, dropoff: null, vehicle: null,
             fares: {}, etas: {}, distance: 0,
             rideId: null, captainName: null, fare: 0, paymentMethod: 'cash',
             realDriver: null
+        },
+        driver: {
+            id: null,
+            name: '',
+            vehicleNumber: '',
+            vehicleType: '',
+            isAvailable: false,
+            activeRide: null,
+            pollInterval: null
         },
         csrfToken: '',
         countryCode: '+91',
@@ -46,6 +56,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('reg-country-code').textContent   = state.countryCode;
         document.getElementById('login-country-code').textContent = state.countryCode;
 
+        // Init role tabs listeners
+        const btnRegPass = document.getElementById('btn-role-passenger-reg');
+        const btnRegCapt = document.getElementById('btn-role-captain-reg');
+        const btnLogPass = document.getElementById('btn-role-passenger-login');
+        const btnLogCapt = document.getElementById('btn-role-captain-login');
+
+        if (btnRegPass) btnRegPass.addEventListener('click', () => setAuthRole('passenger'));
+        if (btnRegCapt) btnRegCapt.addEventListener('click', () => setAuthRole('captain'));
+        if (btnLogPass) btnLogPass.addEventListener('click', () => setAuthRole('passenger'));
+        if (btnLogCapt) btnLogCapt.addEventListener('click', () => setAuthRole('captain'));
+
+        // Default set passenger role
+        setAuthRole('passenger');
+
         // Auto-recover session if user is logged in
         if (csrfJson && csrfJson.user) {
             const userPayload = {
@@ -54,12 +78,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: csrfJson.user.email,
                 csrf_token: csrfJson.csrf_token
             };
-            // Remove country code from start of mobile string to get raw local phone
             let rawPhone = csrfJson.user.mobile;
             if (rawPhone.startsWith(state.countryCode)) {
                 rawPhone = rawPhone.substring(state.countryCode.length);
             }
             onLoginSuccess(userPayload, rawPhone);
+        } else if (csrfJson && csrfJson.driver) {
+            const driverPayload = {
+                driver_id: csrfJson.driver.driver_id,
+                name: csrfJson.driver.name,
+                vehicle_number: csrfJson.driver.vehicle_number,
+                vehicle_type: csrfJson.driver.vehicle_type,
+                is_available: csrfJson.driver.is_available,
+                csrf_token: csrfJson.csrf_token
+            };
+            let rawPhone = csrfJson.driver.mobile;
+            if (rawPhone.startsWith(state.countryCode)) {
+                rawPhone = rawPhone.substring(state.countryCode.length);
+            }
+            onDriverLoginSuccess(driverPayload, rawPhone);
         }
     }
 
@@ -111,6 +148,70 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     }
 
+    // Role selection tabs styling and toggle helper
+    function setAuthRole(role) {
+        state.authRole = role;
+        
+        const btnRegPass = document.getElementById('btn-role-passenger-reg');
+        const btnRegCapt = document.getElementById('btn-role-captain-reg');
+        const driverFields = document.getElementById('driver-reg-fields');
+        const emailField = document.getElementById('passenger-email-group');
+        
+        if (btnRegPass && btnRegCapt) {
+            if (role === 'passenger') {
+                btnRegPass.classList.add('active');
+                btnRegPass.style.background = 'var(--bg-light)';
+                btnRegPass.style.color = 'var(--text-main)';
+                btnRegCapt.classList.remove('active');
+                btnRegCapt.style.background = 'transparent';
+                btnRegCapt.style.color = 'var(--text-secondary)';
+                if (driverFields) driverFields.classList.add('hidden');
+                if (emailField) emailField.classList.remove('hidden');
+                document.getElementById('register-title-text').textContent = 'Create Account';
+                document.getElementById('register-subtitle-text').textContent = 'Enter your details to get started';
+                document.getElementById('btn-register').textContent = 'Create Account';
+            } else {
+                btnRegCapt.classList.add('active');
+                btnRegCapt.style.background = 'var(--bg-light)';
+                btnRegCapt.style.color = 'var(--text-main)';
+                btnRegPass.classList.remove('active');
+                btnRegPass.style.background = 'transparent';
+                btnRegPass.style.color = 'var(--text-secondary)';
+                if (driverFields) driverFields.classList.remove('hidden');
+                if (emailField) emailField.classList.add('hidden');
+                document.getElementById('register-title-text').textContent = 'Captain Registration';
+                document.getElementById('register-subtitle-text').textContent = 'Register to start earning as a Captain';
+                document.getElementById('btn-register').textContent = 'Register as Captain';
+            }
+        }
+
+        const btnLogPass = document.getElementById('btn-role-passenger-login');
+        const btnLogCapt = document.getElementById('btn-role-captain-login');
+        if (btnLogPass && btnLogCapt) {
+            if (role === 'passenger') {
+                btnLogPass.classList.add('active');
+                btnLogPass.style.background = 'var(--bg-light)';
+                btnLogPass.style.color = 'var(--text-main)';
+                btnLogCapt.classList.remove('active');
+                btnLogCapt.style.background = 'transparent';
+                btnLogCapt.style.color = 'var(--text-secondary)';
+                document.getElementById('login-title-text').textContent = 'Welcome Back';
+                document.getElementById('login-subtitle-text').textContent = 'Sign in to continue booking rides';
+                document.getElementById('btn-login').textContent = 'Sign In';
+            } else {
+                btnLogCapt.classList.add('active');
+                btnLogCapt.style.background = 'var(--bg-light)';
+                btnLogCapt.style.color = 'var(--text-main)';
+                btnLogPass.classList.remove('active');
+                btnLogPass.style.background = 'transparent';
+                btnLogPass.style.color = 'var(--text-secondary)';
+                document.getElementById('login-title-text').textContent = 'Captain Login';
+                document.getElementById('login-subtitle-text').textContent = 'Sign in to access your captain console';
+                document.getElementById('btn-login').textContent = 'Log In as Captain';
+            }
+        }
+    }
+
     // =========================================================================
     // AUTH
     // =========================================================================
@@ -127,26 +228,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const name     = document.getElementById('reg-name').value.trim();
         const rawPhone = document.getElementById('reg-mobile').value.trim();
         const mobile   = state.countryCode + rawPhone;
-        const email    = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value;
 
         const btn = document.getElementById('btn-register');
         btn.disabled = true; btn.textContent = 'Creating account...';
 
-        const json = await apiPost('../user/register.php', { name, mobile, email, password }).catch(() => null);
-        btn.disabled = false; btn.textContent = 'Create Account';
+        if (state.authRole === 'passenger') {
+            const email = document.getElementById('reg-email').value.trim();
+            const json = await apiPost('../user/register.php', { name, mobile, email, password }).catch(() => null);
+            btn.disabled = false; btn.textContent = 'Create Account';
 
-        if (!json) { showError('reg-error', 'Network error. Please try again.'); return; }
-        if (!json.success) {
-            showError('reg-error', json.errors ? json.errors.join(' ') : (json.message || 'Registration failed.'));
-            return;
-        }
+            if (!json) { showError('reg-error', 'Network error. Please try again.'); return; }
+            if (!json.success) {
+                showError('reg-error', json.errors ? json.errors.join(' ') : (json.message || 'Registration failed.'));
+                return;
+            }
 
-        const loginJson = await apiPost('../user/login.php', { mobile, password }).catch(() => null);
-        if (loginJson && loginJson.success) {
-            onLoginSuccess(loginJson, rawPhone);
+            const loginJson = await apiPost('../user/login.php', { mobile, password }).catch(() => null);
+            if (loginJson && loginJson.success) {
+                onLoginSuccess(loginJson, rawPhone);
+            } else {
+                switchScreen('screen-login');
+            }
         } else {
-            switchScreen('screen-login');
+            const vehicle_number = document.getElementById('reg-vehicle-number').value.trim();
+            const vehicle_type   = document.getElementById('reg-vehicle-type').value;
+            const json = await apiPost('../driver/register.php', { name, mobile, vehicle_number, vehicle_type, password }).catch(() => null);
+            btn.disabled = false; btn.textContent = 'Register as Captain';
+
+            if (!json) { showError('reg-error', 'Network error. Please try again.'); return; }
+            if (!json.success) {
+                showError('reg-error', json.errors ? json.errors.join(' ') : (json.message || 'Registration failed.'));
+                return;
+            }
+
+            const loginJson = await apiPost('../driver/login.php', { mobile, password }).catch(() => null);
+            if (loginJson && loginJson.success) {
+                onDriverLoginSuccess(loginJson, rawPhone);
+            } else {
+                switchScreen('screen-login');
+            }
         }
     });
 
@@ -159,13 +280,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('btn-login');
         btn.disabled = true; btn.textContent = 'Signing in...';
 
-        const json = await apiPost('../user/login.php', { mobile, password }).catch(() => null);
-        btn.disabled = false; btn.textContent = 'Sign In';
+        if (state.authRole === 'passenger') {
+            const json = await apiPost('../user/login.php', { mobile, password }).catch(() => null);
+            btn.disabled = false; btn.textContent = 'Sign In';
 
-        if (!json) { showError('login-error', 'Network error. Please try again.'); return; }
-        if (!json.success) { showError('login-error', json.message || 'Invalid credentials.'); return; }
+            if (!json) { showError('login-error', 'Network error. Please try again.'); return; }
+            if (!json.success) { showError('login-error', json.message || 'Invalid credentials.'); return; }
 
-        onLoginSuccess(json, rawPhone);
+            onLoginSuccess(json, rawPhone);
+        } else {
+            const json = await apiPost('../driver/login.php', { mobile, password }).catch(() => null);
+            btn.disabled = false; btn.textContent = 'Log In as Captain';
+
+            if (!json) { showError('login-error', 'Network error. Please try again.'); return; }
+            if (!json.success) { showError('login-error', json.message || 'Invalid credentials.'); return; }
+
+            onDriverLoginSuccess(json, rawPhone);
+        }
     });
 
     function onLoginSuccess(json, rawPhone) {
@@ -182,12 +313,51 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('profile-phone').value = state.countryCode + ' ' + state.user.phone;
         document.getElementById('profile-email').value = state.user.email;
 
-        // Explicitly set panel visibility and active sidebar navigation states
+        // Reset menu visibility for passenger
+        document.querySelectorAll('.menu-item').forEach(m => {
+            m.classList.remove('hidden');
+            m.style.display = 'flex';
+        });
+        const driverDashMenu = document.getElementById('menu-driver-dashboard');
+        if (driverDashMenu) {
+            driverDashMenu.classList.add('hidden');
+            driverDashMenu.style.display = 'none';
+        }
+
         document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
         const dashboardBtn = document.querySelector('.menu-item[data-target="dashboard"]');
         if (dashboardBtn) dashboardBtn.classList.add('active');
         showPanel('panel-booking');
 
+        switchScreen('screen-app');
+        initLeafletMap();
+    }
+
+    function onDriverLoginSuccess(json, rawPhone) {
+        state.driver.id = json.driver_id;
+        state.driver.name = json.name;
+        state.driver.vehicleNumber = json.vehicle_number;
+        state.driver.vehicleType = json.vehicle_type;
+        state.driver.isAvailable = json.is_available;
+        if (json.csrf_token) state.csrfToken = json.csrf_token;
+
+        document.getElementById('sidebar-user-name').textContent = state.driver.name;
+        document.getElementById('sidebar-user-phone').textContent = state.countryCode + ' ' + rawPhone;
+        document.getElementById('sidebar-avatar').textContent = state.driver.name.charAt(0).toUpperCase();
+
+        // Adjust sidebar options for Driver (hide passenger ones, show driver)
+        document.querySelectorAll('.menu-item').forEach(m => {
+            m.classList.add('hidden');
+            m.style.display = 'none';
+        });
+        const driverDashMenu = document.getElementById('menu-driver-dashboard');
+        if (driverDashMenu) {
+            driverDashMenu.classList.remove('hidden');
+            driverDashMenu.classList.add('active');
+            driverDashMenu.style.display = 'flex';
+        }
+
+        showDriverDashboard(json.active_ride);
         switchScreen('screen-app');
         initLeafletMap();
     }
@@ -1126,5 +1296,216 @@ document.addEventListener('DOMContentLoaded', () => {
         msg.classList.remove('hidden');
         setTimeout(() => msg.classList.add('hidden'), 2500);
     });
+
+    // =========================================================================
+    // CAPTAIN (DRIVER) WORKFLOWS
+    // =========================================================================
+
+    function showDriverDashboard(activeRide = null) {
+        document.getElementById('driver-name-disp').textContent = state.driver.name + " (" + state.driver.vehicleNumber + ")";
+        showPanel('panel-driver-dashboard');
+
+        // Sync availability button style
+        updateDriverDutyUI();
+
+        if (activeRide) {
+            loadActiveDriverRide(activeRide);
+        } else {
+            document.getElementById('driver-active-ride-panel').classList.add('hidden');
+            if (state.driver.isAvailable) {
+                document.getElementById('driver-online-view').classList.remove('hidden');
+                document.getElementById('driver-offline-view').classList.add('hidden');
+                startDriverRidesPolling();
+            } else {
+                document.getElementById('driver-online-view').classList.add('hidden');
+                document.getElementById('driver-offline-view').classList.remove('hidden');
+                stopDriverRidesPolling();
+            }
+        }
+    }
+
+    function updateDriverDutyUI() {
+        const btn = document.getElementById('btn-driver-duty-toggle');
+        if (!btn) return;
+        if (state.driver.isAvailable) {
+            btn.textContent = 'Online';
+            btn.className = 'btn-duty online';
+        } else {
+            btn.textContent = 'Offline';
+            btn.className = 'btn-duty offline';
+        }
+    }
+
+    // Toggle duty availability
+    const btnDriverDutyToggle = document.getElementById('btn-driver-duty-toggle');
+    if (btnDriverDutyToggle) {
+        btnDriverDutyToggle.addEventListener('click', async () => {
+            const res = await apiPost('../driver/toggle_availability.php', {}).catch(() => null);
+            if (res && res.success) {
+                state.driver.isAvailable = res.is_available;
+                showDriverDashboard();
+            }
+        });
+    }
+
+    // Available rides polling
+    function startDriverRidesPolling() {
+        stopDriverRidesPolling();
+        pollAvailableDriverRides();
+        state.driver.pollInterval = setInterval(pollAvailableDriverRides, 4000);
+    }
+
+    function stopDriverRidesPolling() {
+        if (state.driver.pollInterval) {
+            clearInterval(state.driver.pollInterval);
+            state.driver.pollInterval = null;
+        }
+    }
+
+    async function pollAvailableDriverRides() {
+        if (!state.driver.isAvailable) return;
+        const res = await apiGet('../driver/available_rides.php').catch(() => null);
+        const container = document.getElementById('driver-requests-container');
+        if (!container) return;
+
+        if (res && res.success && res.rides && res.rides.length > 0) {
+            container.innerHTML = '';
+            res.rides.forEach(ride => {
+                const card = document.createElement('div');
+                card.className = 'request-card';
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-weight:700; color:var(--secondary);">₹${Math.round(ride.fare)}</span>
+                        <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">${ride.distance_km} km</span>
+                    </div>
+                    <p style="font-size:0.85rem; margin:2px 0;"><i data-lucide="circle-dot" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i> <b>Pickup:</b> ${ride.pickup_location.split(',')[0]}</p>
+                    <p style="font-size:0.85rem; margin:2px 0;"><i data-lucide="map-pin" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i> <b>Drop:</b> ${ride.destination.split(',')[0]}</p>
+                    <p style="font-size:0.8rem; color:var(--text-light); margin-top:4px;">Requested by ${ride.user_name}</p>
+                    <button class="btn-primary btn-block btn-accept-ride" data-id="${ride.id}" style="margin-top:10px; padding:6px 12px; font-size:0.85rem;">Accept Request</button>
+                `;
+                
+                card.querySelector('.btn-accept-ride').addEventListener('click', async (e) => {
+                    const rId = e.target.dataset.id;
+                    e.target.disabled = true;
+                    e.target.textContent = 'Accepting...';
+                    const acceptRes = await apiPost('../driver/accept_ride.php', { ride_id: rId }).catch(() => null);
+                    if (acceptRes && acceptRes.success) {
+                        // Successfully accepted! Reload status to update UI
+                        const statusRes = await apiGet('../driver/status.php').catch(() => null);
+                        if (statusRes && statusRes.active_ride) {
+                            loadActiveDriverRide(statusRes.active_ride);
+                        }
+                    } else {
+                        alert(acceptRes ? acceptRes.message : 'Could not accept ride.');
+                        pollAvailableDriverRides();
+                    }
+                });
+                
+                container.appendChild(card);
+            });
+            refreshIcons();
+        } else {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-light); margin-top:20px;">No available requests right now.</p>';
+        }
+    }
+
+    function loadActiveDriverRide(ride) {
+        state.driver.activeRide = ride;
+        stopDriverRidesPolling();
+
+        document.getElementById('driver-online-view').classList.add('hidden');
+        document.getElementById('driver-offline-view').classList.add('hidden');
+        
+        const activePanel = document.getElementById('driver-active-ride-panel');
+        activePanel.classList.remove('hidden');
+
+        document.getElementById('driver-passenger-name').textContent = ride.user_name;
+        document.getElementById('driver-passenger-phone').textContent = ride.user_mobile;
+        document.getElementById('driver-ride-pickup').textContent = ride.pickup_location.split(',')[0];
+        document.getElementById('driver-ride-drop').textContent = ride.destination.split(',')[0];
+        document.getElementById('driver-ride-fare-disp').textContent = '₹' + Math.round(ride.fare);
+
+        const badge = document.getElementById('driver-ride-status-badge');
+        const advanceBtn = document.getElementById('btn-driver-advance');
+        const otpSection = document.getElementById('driver-otp-verification-section');
+
+        badge.textContent = ride.ride_status === 'accepted' ? 'Approaching Pickup' : (ride.ride_status === 'driver_arrived' ? 'Arrived at Pickup' : 'Trip Started');
+        badge.className = ride.ride_status === 'driver_arrived' ? 'status-badge warning' : 'status-badge green';
+
+        if (ride.ride_status === 'accepted') {
+            advanceBtn.textContent = 'Arrived at Pickup';
+            otpSection.classList.add('hidden');
+        } else if (ride.ride_status === 'driver_arrived') {
+            advanceBtn.textContent = 'Start Trip';
+            otpSection.classList.remove('hidden');
+            document.getElementById('driver-otp-input').value = '';
+            document.getElementById('driver-otp-err').classList.add('hidden');
+        } else {
+            advanceBtn.textContent = 'Complete Ride';
+            otpSection.classList.add('hidden');
+        }
+    }
+
+    // Advancing active ride by captain
+    const btnDriverAdvance = document.getElementById('btn-driver-advance');
+    if (btnDriverAdvance) {
+        btnDriverAdvance.addEventListener('click', async () => {
+            const ride = state.driver.activeRide;
+            if (!ride) return;
+
+            btnDriverAdvance.disabled = true;
+            btnDriverAdvance.textContent = 'Processing...';
+
+            if (ride.ride_status === 'accepted') {
+                const res = await apiPost('../driver/advance_ride.php', { ride_id: ride.id }).catch(() => null);
+                btnDriverAdvance.disabled = false;
+                if (res && res.success) {
+                    const statusRes = await apiGet('../driver/status.php').catch(() => null);
+                    if (statusRes && statusRes.active_ride) loadActiveDriverRide(statusRes.active_ride);
+                } else {
+                    alert(res ? res.message : 'Failed to update status.');
+                }
+            } else if (ride.ride_status === 'driver_arrived') {
+                // Verify OTP first
+                const otpInput = document.getElementById('driver-otp-input').value.trim();
+                const errDiv = document.getElementById('driver-otp-err');
+                if (otpInput !== ride.otp) {
+                    errDiv.textContent = 'Invalid OTP. Please enter the correct code.';
+                    errDiv.classList.remove('hidden');
+                    btnDriverAdvance.disabled = false;
+                    btnDriverAdvance.textContent = 'Start Trip';
+                    return;
+                }
+                
+                // OTP verified! Call advance
+                const res = await apiPost('../driver/advance_ride.php', { ride_id: ride.id }).catch(() => null);
+                btnDriverAdvance.disabled = false;
+                if (res && res.success) {
+                    const statusRes = await apiGet('../driver/status.php').catch(() => null);
+                    if (statusRes && statusRes.active_ride) loadActiveDriverRide(statusRes.active_ride);
+                } else {
+                    alert(res ? res.message : 'Failed to update status.');
+                }
+            } else if (ride.ride_status === 'started') {
+                const res = await apiPost('../driver/complete_ride.php', { ride_id: ride.id }).catch(() => null);
+                btnDriverAdvance.disabled = false;
+                if (res && res.success) {
+                    state.driver.activeRide = null;
+                    state.driver.isAvailable = true;
+                    showDriverDashboard();
+                } else {
+                    alert(res ? res.message : 'Failed to complete ride.');
+                }
+            }
+        });
+    }
+
+    // Verify OTP Button Action
+    const btnDriverVerifyOtp = document.getElementById('btn-driver-verify-otp');
+    if (btnDriverVerifyOtp) {
+        btnDriverVerifyOtp.addEventListener('click', () => {
+            if (btnDriverAdvance) btnDriverAdvance.click();
+        });
+    }
 
 }); // end DOMContentLoaded

@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="style.css?v=1.1">
+    <link rel="stylesheet" href="style.css?v=1.4">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -37,9 +37,16 @@
             <div class="auth-card">
                 <div class="auth-header">
                     <div class="welcome-brand text-dark">Qwikk</div>
-                    <h2>Create Account</h2>
-                    <p>Enter your details to get started</p>
+                    <h2 id="register-title-text">Create Account</h2>
+                    <p id="register-subtitle-text">Enter your details to get started</p>
                 </div>
+                
+                <!-- Role selector tabs -->
+                <div class="auth-role-tabs" style="display: flex; gap: 8px; margin: 0 0 20px 0; padding: 0;">
+                    <button type="button" class="btn-role-tab active" id="btn-role-passenger-reg" style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-light); color: var(--text-main); font-weight: 700; cursor: pointer; font-family: inherit;">Passenger</button>
+                    <button type="button" class="btn-role-tab" id="btn-role-captain-reg" style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: transparent; color: var(--text-secondary); font-weight: 700; cursor: pointer; font-family: inherit;">Captain (Rider)</button>
+                </div>
+
                 <div class="auth-body">
                     <div class="form-group-auth">
                         <label for="reg-name">Full Name</label>
@@ -52,7 +59,27 @@
                             <input type="text" id="reg-mobile" placeholder="Enter mobile number" autocomplete="tel" maxlength="10" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                         </div>
                     </div>
-                    <div class="form-group-auth">
+                    
+                    <!-- Driver-specific registration fields -->
+                    <div id="driver-reg-fields" class="hidden">
+                        <div class="form-group-auth">
+                            <label for="reg-vehicle-number">Vehicle Number</label>
+                            <input type="text" id="reg-vehicle-number" placeholder="e.g. KA01AB1234">
+                        </div>
+                        <div class="form-group-auth">
+                            <label for="reg-vehicle-type">Vehicle Type</label>
+                            <select id="reg-vehicle-type" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; background: #FFF; font-size: 0.95rem; color: var(--text-main); font-family: inherit;">
+                                <option value="bike">Bike (Standard)</option>
+                                <option value="scooty">Scooty</option>
+                                <option value="auto">Auto</option>
+                                <option value="bike-pink">Pink Bike (Female Only)</option>
+                                <option value="cab-economy">Cab Economy</option>
+                                <option value="cab-premium">Cab Premium</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group-auth" id="passenger-email-group">
                         <label for="reg-email">Email (optional)</label>
                         <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
                     </div>
@@ -77,9 +104,16 @@
             <div class="auth-card">
                 <div class="auth-header">
                     <div class="welcome-brand text-dark">Qwikk</div>
-                    <h2>Welcome Back</h2>
-                    <p>Sign in to continue booking rides</p>
+                    <h2 id="login-title-text">Welcome Back</h2>
+                    <p id="login-subtitle-text">Sign in to continue booking rides</p>
                 </div>
+
+                <!-- Role selector tabs -->
+                <div class="auth-role-tabs" style="display: flex; gap: 8px; margin: 0 0 20px 0; padding: 0;">
+                    <button type="button" class="btn-role-tab active" id="btn-role-passenger-login" style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-light); color: var(--text-main); font-weight: 700; cursor: pointer; font-family: inherit;">Passenger</button>
+                    <button type="button" class="btn-role-tab" id="btn-role-captain-login" style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: transparent; color: var(--text-secondary); font-weight: 700; cursor: pointer; font-family: inherit;">Captain (Rider)</button>
+                </div>
+
                 <div class="auth-body">
                     <div class="form-group-auth">
                         <label for="login-mobile">Mobile Number</label>
@@ -126,6 +160,9 @@
                     </li>
                     <li class="menu-item" data-target="profile">
                         <i data-lucide="user"></i> <span>Profile</span>
+                    </li>
+                    <li class="menu-item hidden" data-target="driver-dashboard" id="menu-driver-dashboard">
+                        <i data-lucide="shield"></i> <span>Captain Console</span>
                     </li>
                 </ul>
                 <div class="sidebar-footer">
@@ -388,6 +425,62 @@
                             </div>
                         </div>
 
+                        <!-- Panel I: Driver Dashboard -->
+                        <div id="panel-driver-dashboard" class="booking-panel driver-theme">
+                            <div class="panel-header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                                <div>
+                                    <h2 style="margin:0;">Captain Console</h2>
+                                    <span id="driver-name-disp" style="font-weight:600; font-size:0.9rem; color:var(--text-light);">Test Captain</span>
+                                </div>
+                                <button id="btn-driver-duty-toggle" class="btn-duty offline" style="padding:8px 16px; border:none; border-radius:30px; font-weight:700; cursor:pointer; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px; transition:var(--transition-fast);">Offline</button>
+                            </div>
+
+                            <!-- Available requests feed -->
+                            <div id="driver-online-view" class="hidden">
+                                <h3>Available Requests</h3>
+                                <div id="driver-requests-container" class="requests-list" style="margin-top:12px; display:flex; flex-direction:column; gap:12px; max-height: 280px; overflow-y: auto; padding-right:4px;">
+                                    <!-- Populated dynamically -->
+                                    <p style="text-align:center; color:var(--text-light); margin-top:20px;">Checking for requests...</p>
+                                </div>
+                            </div>
+                            <div id="driver-offline-view" style="text-align:center; padding:40px 20px; color:var(--text-secondary);">
+                                <div style="font-size:3rem; margin-bottom:12px;">💤</div>
+                                <h3>You are Offline</h3>
+                                <p style="font-size:0.9rem; margin-top:4px; color:var(--text-light)">Go online to start receiving passenger bookings in your city.</p>
+                            </div>
+
+                            <!-- Active assigned ride panel -->
+                            <div id="driver-active-ride-panel" class="hidden" style="border-top: 1px solid var(--border-color); margin-top:15px; padding-top:15px;">
+                                <div class="assigned-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div class="status-badge warning" id="driver-ride-status-badge">Approaching Pickup</div>
+                                    <span style="font-size:0.9rem; font-weight:700; color:var(--text-secondary);" id="driver-ride-fare-disp">₹0.00</span>
+                                </div>
+                                <div class="captain-card" style="margin-top:12px; background:var(--bg-main); padding:12px; border-radius:12px; display:flex; gap:12px; align-items:center;">
+                                    <div class="captain-avatar" style="font-size:1.8rem; background:#FFF; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center;">👤</div>
+                                    <div>
+                                        <h4 id="driver-passenger-name" style="margin:0; font-size:0.95rem;">Passenger Name</h4>
+                                        <p id="driver-passenger-phone" style="margin:2px 0 0 0; font-size:0.8rem; color:var(--text-secondary);">+91 9999999999</p>
+                                    </div>
+                                </div>
+                                <div class="ride-summary-mini" style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
+                                    <div class="summary-loc" style="font-size:0.85rem;"><i data-lucide="circle-dot" style="width:14px;height:14px;"></i> <span id="driver-ride-pickup">Pickup Location</span></div>
+                                    <div class="summary-loc" style="font-size:0.85rem;"><i data-lucide="map-pin" style="width:14px;height:14px;"></i> <span id="driver-ride-drop">Destination Location</span></div>
+                                </div>
+                                <div id="driver-otp-verification-section" class="hidden" style="margin-top:12px;">
+                                    <label style="font-size:0.85rem; font-weight:600;">Verify Ride OTP:</label>
+                                    <div style="display:flex; gap:8px; margin-top:4px;">
+                                        <input type="text" id="driver-otp-input" placeholder="Enter OTP" maxlength="4" style="padding:10px; border:1px solid var(--border-color); border-radius:8px; width:100%; outline:none; font-size:0.95rem;">
+                                        <button id="btn-driver-verify-otp" class="btn-primary" style="padding:10px 16px; border:none; border-radius:8px; font-weight:700; cursor:pointer;">Verify</button>
+                                    </div>
+                                    <div id="driver-otp-err" class="hidden" style="color:var(--danger); font-size:0.8rem; margin-top:4px; font-weight:600;">Invalid OTP</div>
+                                </div>
+                                <div class="driver-actions" style="margin-top:15px; display:flex; gap:8px;">
+                                    <button id="btn-driver-advance" class="btn-primary btn-block">Arrived at Pickup</button>
+                                    <button id="btn-driver-cancel" class="btn-secondary" style="padding:10px 16px; display:none;">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
                     </section>
 
                     <!-- Map -->
@@ -401,7 +494,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="simulation.js?v=1.5"></script>
-    <script src="app.js?v=1.5"></script>
+    <script src="simulation.js?v=1.8"></script>
+    <script src="app.js?v=2.3"></script>
 </body>
 </html>

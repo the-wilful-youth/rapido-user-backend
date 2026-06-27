@@ -23,6 +23,8 @@ CREATE TABLE drivers (
     name           VARCHAR(100) NOT NULL,
     mobile         VARCHAR(20)  UNIQUE NOT NULL,
     vehicle_number VARCHAR(50)  NOT NULL,
+    password_hash  VARCHAR(255) DEFAULT NULL,
+    vehicle_type   ENUM('bike','scooty','auto','bike-pink','cab-economy','cab-premium') NOT NULL DEFAULT 'bike',
     is_available   BOOLEAN      DEFAULT TRUE,
     created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

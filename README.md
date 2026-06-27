@@ -35,6 +35,14 @@ rapido-user-backend/
 │   ├── db.php              # PDO singleton
 │   ├── env.sample.php      # Credentials template (commit this)
 │   └── env.php             # Local credentials (git-ignored)
+├── driver/                 # Driver API endpoints
+│   ├── login.php           # Authenticate driver & initialize driver session
+│   ├── status.php          # Retrieve driver availability status and active ride
+│   ├── toggle_availability.php # Online/Offline duty toggle
+│   ├── available_rides.php     # Retrieve rides in 'waiting' state
+│   ├── accept_ride.php     # Atomically accept a ride request
+│   ├── advance_ride.php    # Update ride lifecycle states (arrived, started)
+│   └── complete_ride.php   # Complete active ride and free driver
 ├── models/
 │   └── Ride.php            # All ride DB operations
 ├── public/
@@ -47,7 +55,7 @@ rapido-user-backend/
 ├── tests/
 │   ├── test_connection.php
 │   └── test_bad_connection.php
-├── user/                   # API endpoints
+├── user/                   # Passenger API endpoints
 │   ├── csrf.php
 │   ├── register.php
 │   ├── login.php
@@ -55,8 +63,6 @@ rapido-user-backend/
 │   ├── book_ride.php
 │   ├── assign_driver.php
 │   ├── ride_status.php
-│   ├── advance_ride.php
-│   ├── complete_ride.php
 │   ├── simulation_advance.php
 │   ├── pay_ride.php
 │   ├── submit_feedback.php
@@ -99,8 +105,13 @@ All endpoints return `Content-Type: application/json`. Auth endpoints require a 
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `user/advance_ride.php` | Driver | `accepted→driver_arrived` or `driver_arrived→started` |
-| POST | `user/complete_ride.php` | Driver | `started→completed`, frees the driver atomically |
+| POST | `driver/login.php` | No | Login driver, start session |
+| GET | `driver/status.php` | Driver | Get driver profile + active assigned ride |
+| POST | `driver/toggle_availability.php` | Driver | Toggle duty online/offline availability |
+| GET | `driver/available_rides.php` | Driver | Poll for waiting ride requests |
+| POST | `driver/accept_ride.php` | Driver | Accept a waiting ride request |
+| POST | `driver/advance_ride.php` | Driver | `accepted` &rarr; `driver_arrived` &rarr; `started` |
+| POST | `driver/complete_ride.php` | Driver | `started` &rarr; `completed`, frees driver |
 
 ### Simulation (Demo Only)
 
@@ -108,7 +119,7 @@ All endpoints return `Content-Type: application/json`. Auth endpoints require a 
 |---|---|---|---|
 | POST | `user/simulation_advance.php` | User | Advances ride through the full lifecycle for the frontend simulation. Not for production driver use. |
 
-> **Driver auth**: driver endpoints require `$_SESSION['driver_id']` (set by the driver login flow, not yet built in this module).
+> **Driver auth**: driver endpoints require `$_SESSION['driver_id']` (set by the driver login flow).
 
 ---
 
@@ -174,4 +185,4 @@ State transitions are enforced server-side. Out-of-order calls return `409` or `
 - [x] Phase 6 — Payment + feedback endpoints
 - [x] Phase 7 — Frontend SPA (map, booking flow, history, wallet, profile)
 - [x] Phase 8 — Security hardening (CSRF, session flags, race condition fixes)
-- [ ] Phase 9 — Driver module (login, session, accept/advance rides)
+- [x] Phase 9 — Driver module (login, session, accept/advance rides)

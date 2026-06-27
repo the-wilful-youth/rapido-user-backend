@@ -37,8 +37,31 @@ if (!empty($_SESSION['user_id'])) {
     }
 }
 
+$driver = null;
+if (!empty($_SESSION['driver_id'])) {
+    try {
+        $pdo = Database::getInstance()->getConnection();
+        $stmt = $pdo->prepare('SELECT id, name, mobile, vehicle_number, vehicle_type, is_available FROM drivers WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $_SESSION['driver_id']]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $driver = [
+                'driver_id'      => (int)$row['id'],
+                'name'           => $row['name'],
+                'mobile'         => $row['mobile'],
+                'vehicle_number' => $row['vehicle_number'],
+                'vehicle_type'   => $row['vehicle_type'],
+                'is_available'   => (bool)$row['is_available']
+            ];
+        }
+    } catch (Throwable) {
+        // Ignore
+    }
+}
+
 echo json_encode([
     'success'    => true,
     'csrf_token' => $_SESSION['csrf_token'],
-    'user'       => $user
+    'user'       => $user,
+    'driver'     => $driver
 ]);
